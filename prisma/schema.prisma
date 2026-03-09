@@ -1,0 +1,908 @@
+// ============================================================================
+// IELTS FLOW - Complete Database Schema
+// Optimized for: Supabase PostgreSQL + pgvector + Prisma v7
+// Gemini text-embedding-004 → 768 dimensions
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector, uuid_ossp(map: "uuid-ossp")]
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  GUEST
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum TestModule {
+  LISTENING
+  READING
+  WRITING
+  SPEAKING
+}
+
+enum TestVariant {
+  ACADEMIC
+  GENERAL
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  FILL_IN_BLANK
+  TRUE_FALSE_NOT_GIVEN
+  YES_NO_NOT_GIVEN
+  MATCHING_HEADINGS
+  MATCHING_INFORMATION
+  MATCHING_FEATURES
+  MATCHING_SENTENCE_ENDINGS
+  SENTENCE_COMPLETION
+  SUMMARY_COMPLETION
+  NOTE_COMPLETION
+  TABLE_COMPLETION
+  FLOW_CHART_COMPLETION
+  DIAGRAM_LABELLING
+  SHORT_ANSWER
+  MAP_LABELLING
+}
+
+enum WritingTaskType {
+  TASK_1_ACADEMIC
+  TASK_1_GENERAL
+  TASK_2
+}
+
+enum SpeakingPartType {
+  PART_1
+  PART_2
+  PART_3
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EVALUATING
+  EVALUATED
+  ERROR
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED_BY_STUDENT
+  CANCELLED_BY_INSTRUCTOR
+  NO_SHOW
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PRO
+  PREMIUM
+}
+
+enum ResourceFileType {
+  PDF
+  DOCX
+  TXT
+  CSV
+  IMAGE
+  AUDIO
+}
+
+enum ResourceSourceType {
+  READING_PASSAGE
+  WRITING_PROMPT
+  SAMPLE_ANSWER
+  CUE_CARD
+  LESSON_NOTES
+  VOCABULARY_LIST
+  LISTENING_SCRIPT
+  GENERAL_MATERIAL
+}
+
+enum ResourceProcessingStatus {
+  PENDING
+  EXTRACTING
+  CHUNKING
+  EMBEDDING
+  COMPLETED
+  FAILED
+}
+
+enum GenerationStatus {
+  PENDING
+  GENERATING
+  REVIEWING
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  EVALUATION_READY
+  SPEAKING_SESSION_STARTING
+  NEW_TEST_AVAILABLE
+  SUBSCRIPTION_EXPIRING
+  SYSTEM_ANNOUNCEMENT
+}
+
+// ============================================================================
+// USERS & AUTH
+// ============================================================================
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supabaseId    String   @unique @map("supabase_id")
+  email         String   @unique
+  name          String?
+  role          UserRole @default(STUDENT)
+  avatarUrl     String?  @map("avatar_url")
+  isActive      Boolean  @default(true) @map("is_active")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  profile              UserProfile?
+  instructorProfile    InstructorProfile?
+  testAttempts         TestAttempt[]
+  mockTestSessions     MockTestSession[]
+  writingAttempts      WritingAttempt[]
+  speakingSessions     SpeakingSession[]
+  bookingsAsStudent    Booking[]              @relation("StudentBookings")
+  bookingsAsInstructor Booking[]              @relation("InstructorBookings")
+  availability         InstructorAvailability[]
+  subscription         Subscription?
+  payments             Payment[]
+  progressRecords      ProgressRecord[]
+  studyPlans           StudyPlan[]
+  notifications        Notification[]
+  blogPosts            BlogPost[]             @relation("BlogAuthor")
+  uploadedResources    Resource[]             @relation("ResourceUploader")
+
+  @@index([supabaseId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model UserProfile {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String      @unique @map("user_id") @db.Uuid
+  phone          String?
+  timezone       String      @default("UTC")
+  targetBand     Float?      @map("target_band")
+  examDate       DateTime?   @map("exam_date")
+  examVariant    TestVariant @default(ACADEMIC) @map("exam_variant")
+  nativeLanguage String?     @map("native_language")
+  studyHoursPerWeek Int?     @map("study_hours_per_week")
+  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model InstructorProfile {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  bio              String?
+  qualifications   String[]
+  specializations  TestModule[]
+  hourlyRate       Decimal  @default(0) @map("hourly_rate") @db.Decimal(10, 2)
+  currency         String   @default("USD")
+  yearsExperience  Int?     @map("years_experience")
+  totalSessions    Int      @default(0) @map("total_sessions")
+  averageRating    Float?   @map("average_rating")
+  isVerified       Boolean  @default(false) @map("is_verified")
+  stripeAccountId  String?  @map("stripe_account_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_profiles")
+}
+
+// ============================================================================
+// TESTS & QUESTIONS
+// ============================================================================
+
+model Test {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  description   String?
+  module        TestModule
+  variant       TestVariant
+  difficulty    Difficulty  @default(MEDIUM)
+  durationMins  Int         @map("duration_mins")
+  totalQuestions Int        @map("total_questions")
+  isPractice    Boolean     @default(true) @map("is_practice")
+  isActive      Boolean     @default(true) @map("is_active")
+  isGenerated   Boolean     @default(false) @map("is_generated")
+  generationId  String?     @map("generation_id") @db.Uuid
+  tags          String[]    @default([])
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  sections     TestSection[]
+  testAttempts TestAttempt[]
+  generation   GenerationAudit? @relation(fields: [generationId], references: [id])
+
+  @@index([module, variant, isActive])
+  @@index([difficulty])
+  @@index([isPractice, isActive])
+  @@map("tests")
+}
+
+model TestSection {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  testId        String     @map("test_id") @db.Uuid
+  title         String
+  instructions  String?
+  passage       String?    @db.Text
+  audioUrl      String?    @map("audio_url")
+  audioDuration Int?       @map("audio_duration")
+  imageUrl      String?    @map("image_url")
+  order         Int
+
+  test      Test       @relation(fields: [testId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([testId, order])
+  @@map("test_sections")
+}
+
+model Question {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId       String       @map("section_id") @db.Uuid
+  type            QuestionType
+  questionText    String       @map("question_text") @db.Text
+  questionContext String?      @map("question_context") @db.Text
+  options         Json?
+  correctAnswer   Json         @map("correct_answer")
+  acceptedAnswers Json?        @map("accepted_answers")
+  explanation     String?      @db.Text
+  points          Int          @default(1)
+  order           Int
+
+  section TestSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([sectionId, order])
+  @@map("questions")
+}
+
+// ============================================================================
+// FULL MOCK TEST SESSIONS (bundles all 4 modules)
+// ============================================================================
+
+model MockTestSession {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String      @map("user_id") @db.Uuid
+  variant         TestVariant
+  startedAt       DateTime    @default(now()) @map("started_at")
+  completedAt     DateTime?   @map("completed_at")
+  overallBand     Float?      @map("overall_band")
+  listeningBand   Float?      @map("listening_band")
+  readingBand     Float?      @map("reading_band")
+  writingBand     Float?      @map("writing_band")
+  speakingBand    Float?      @map("speaking_band")
+
+  listeningAttemptId String?  @unique @map("listening_attempt_id") @db.Uuid
+  readingAttemptId   String?  @unique @map("reading_attempt_id") @db.Uuid
+  writingAttemptId   String?  @unique @map("writing_attempt_id") @db.Uuid
+  speakingSessionId  String?  @unique @map("speaking_session_id") @db.Uuid
+
+  user              User            @relation(fields: [userId], references: [id])
+  listeningAttempt  TestAttempt?    @relation("MockListening", fields: [listeningAttemptId], references: [id])
+  readingAttempt    TestAttempt?    @relation("MockReading", fields: [readingAttemptId], references: [id])
+  writingAttempt    WritingAttempt? @relation("MockWriting", fields: [writingAttemptId], references: [id])
+  speakingSession   SpeakingSession? @relation("MockSpeaking", fields: [speakingSessionId], references: [id])
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("mock_test_sessions")
+}
+
+// ============================================================================
+// LISTENING & READING ATTEMPTS
+// ============================================================================
+
+model TestAttempt {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  testId          String        @map("test_id") @db.Uuid
+  status          AttemptStatus @default(IN_PROGRESS)
+  startedAt       DateTime      @default(now()) @map("started_at")
+  completedAt     DateTime?     @map("completed_at")
+  timeSpentSecs   Int?          @map("time_spent_secs")
+  correctCount    Int?          @map("correct_count")
+  totalCount      Int?          @map("total_count")
+  rawScore        Float?        @map("raw_score")
+  bandScore       Float?        @map("band_score")
+  flaggedQuestions Int[]         @default([]) @map("flagged_questions")
+
+  user    User     @relation(fields: [userId], references: [id])
+  test    Test     @relation(fields: [testId], references: [id])
+  answers Answer[]
+  mockTestListening MockTestSession? @relation("MockListening")
+  mockTestReading   MockTestSession? @relation("MockReading")
+
+  @@index([userId, testId])
+  @@index([userId, status])
+  @@index([startedAt(sort: Desc)])
+  @@map("test_attempts")
+}
+
+model Answer {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId    String   @map("attempt_id") @db.Uuid
+  questionId   String   @map("question_id") @db.Uuid
+  givenAnswer  Json     @map("given_answer")
+  isCorrect    Boolean? @map("is_correct")
+  pointsEarned Int      @default(0) @map("points_earned")
+  timeTakenSecs Int?    @map("time_taken_secs")
+  isFlagged    Boolean  @default(false) @map("is_flagged")
+  answeredAt   DateTime @default(now()) @map("answered_at")
+
+  attempt  TestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@map("answers")
+}
+
+// ============================================================================
+// WRITING MODULE
+// ============================================================================
+
+model WritingPrompt {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskType      WritingTaskType @map("task_type")
+  variant       TestVariant
+  title         String
+  promptText    String          @map("prompt_text") @db.Text
+  imageUrl      String?         @map("image_url")
+  chartData     Json?           @map("chart_data")
+  difficulty    Difficulty      @default(MEDIUM)
+  topic         String?
+  tags          String[]        @default([])
+  isGenerated   Boolean         @default(false) @map("is_generated")
+  generationId  String?         @map("generation_id") @db.Uuid
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  attempts   WritingAttempt[]
+  generation GenerationAudit? @relation(fields: [generationId], references: [id])
+
+  @@index([taskType, variant, isActive])
+  @@index([difficulty])
+  @@map("writing_prompts")
+}
+
+model WritingAttempt {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  promptId      String        @map("prompt_id") @db.Uuid
+  status        AttemptStatus @default(IN_PROGRESS)
+  response      String        @default("") @db.Text
+  wordCount     Int           @default(0) @map("word_count")
+  startedAt     DateTime      @default(now()) @map("started_at")
+  submittedAt   DateTime?     @map("submitted_at")
+  timeSpentSecs Int?          @map("time_spent_secs")
+
+  user       User              @relation(fields: [userId], references: [id])
+  prompt     WritingPrompt     @relation(fields: [promptId], references: [id])
+  drafts     WritingDraft[]
+  evaluation WritingEvaluation?
+  mockTest   MockTestSession?  @relation("MockWriting")
+
+  @@index([userId, status])
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("writing_attempts")
+}
+
+model WritingDraft {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId String   @map("attempt_id") @db.Uuid
+  content   String   @db.Text
+  wordCount Int      @map("word_count")
+  savedAt   DateTime @default(now()) @map("saved_at")
+
+  attempt WritingAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, savedAt(sort: Desc)])
+  @@map("writing_drafts")
+}
+
+model WritingEvaluation {
+  id                    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId             String @unique @map("attempt_id") @db.Uuid
+  taskAchievement       Float  @map("task_achievement")
+  coherenceCohesion     Float  @map("coherence_cohesion")
+  lexicalResource       Float  @map("lexical_resource")
+  grammaticalRange      Float  @map("grammatical_range")
+  overallBand           Float  @map("overall_band")
+  strengths             String[] @default([])
+  weaknesses            String[] @default([])
+  corrections           Json     @default("[]")
+  vocabularySuggestions Json     @default("[]") @map("vocabulary_suggestions")
+  sampleRewrite         String?  @map("sample_rewrite") @db.Text
+  examinerSummary       String?  @map("examiner_summary") @db.Text
+  rawAiResponse         Json?    @map("raw_ai_response")
+  modelVersion          String?  @map("model_version")
+  evaluatedAt           DateTime @default(now()) @map("evaluated_at")
+
+  attempt WritingAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@map("writing_evaluations")
+}
+
+// ============================================================================
+// SPEAKING MODULE
+// ============================================================================
+
+model SpeakingCueCard {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topic        String
+  promptText   String          @map("prompt_text") @db.Text
+  bulletPoints String[]        @default([]) @map("bullet_points")
+  followUpQs   String[]        @default([]) @map("follow_up_questions")
+  part1Qs      String[]        @default([]) @map("part_1_questions")
+  part3Qs      String[]        @default([]) @map("part_3_questions")
+  difficulty   Difficulty      @default(MEDIUM)
+  tags         String[]        @default([])
+  isGenerated  Boolean         @default(false) @map("is_generated")
+  generationId String?         @map("generation_id") @db.Uuid
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  sessions   SpeakingSession[]
+  generation GenerationAudit?  @relation(fields: [generationId], references: [id])
+
+  @@index([difficulty, isActive])
+  @@map("speaking_cue_cards")
+}
+
+model SpeakingSession {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  cueCardId       String?       @map("cue_card_id") @db.Uuid
+  isAiSession     Boolean       @default(true) @map("is_ai_session")
+  bookingId       String?       @unique @map("booking_id") @db.Uuid
+  status          AttemptStatus @default(IN_PROGRESS)
+  startedAt       DateTime      @default(now()) @map("started_at")
+  completedAt     DateTime?     @map("completed_at")
+  totalDurationSecs Int?        @map("total_duration_secs")
+
+  user       User                 @relation(fields: [userId], references: [id])
+  cueCard    SpeakingCueCard?     @relation(fields: [cueCardId], references: [id])
+  booking    Booking?             @relation(fields: [bookingId], references: [id])
+  parts      SpeakingPart[]
+  aiEval     SpeakingAiEvaluation?
+  instrEval  SpeakingInstructorEvaluation?
+  mockTest   MockTestSession?     @relation("MockSpeaking")
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@index([isAiSession, status])
+  @@map("speaking_sessions")
+}
+
+model SpeakingPart {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String          @map("session_id") @db.Uuid
+  partType      SpeakingPartType @map("part_type")
+  questionText  String?         @map("question_text") @db.Text
+  audioUrl      String?         @map("audio_url")
+  transcript    String?         @db.Text
+  durationSecs  Int?            @map("duration_secs")
+  startedAt     DateTime        @default(now()) @map("started_at")
+  completedAt   DateTime?       @map("completed_at")
+
+  session SpeakingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, partType])
+  @@map("speaking_parts")
+}
+
+model SpeakingAiEvaluation {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId            String   @unique @map("session_id") @db.Uuid
+  fluencyCoherence     Float    @map("fluency_coherence")
+  lexicalResource      Float    @map("lexical_resource")
+  grammaticalRange     Float    @map("grammatical_range")
+  pronunciation        Float
+  overallBand          Float    @map("overall_band")
+  fillerWordAnalysis   Json     @default("[]") @map("filler_word_analysis")
+  pauseAnalysis        Json     @default("{}") @map("pause_analysis")
+  pronunciationFeedback String[] @default([]) @map("pronunciation_feedback")
+  vocabularyFeedback   String[] @default([]) @map("vocabulary_feedback")
+  grammarFeedback      String[] @default([]) @map("grammar_feedback")
+  suggestedStrategy    String?  @map("suggested_strategy") @db.Text
+  rawAiResponse        Json?    @map("raw_ai_response")
+  modelVersion         String?  @map("model_version")
+  evaluatedAt          DateTime @default(now()) @map("evaluated_at")
+
+  session SpeakingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("speaking_ai_evaluations")
+}
+
+model SpeakingInstructorEvaluation {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId         String   @unique @map("session_id") @db.Uuid
+  fluencyCoherence  Float    @map("fluency_coherence")
+  lexicalResource   Float    @map("lexical_resource")
+  grammaticalRange  Float    @map("grammatical_range")
+  pronunciation     Float
+  overallBand       Float    @map("overall_band")
+  comments          String?  @db.Text
+  strengths         String[] @default([])
+  areasToImprove    String[] @default([]) @map("areas_to_improve")
+  recommendedTopics String[] @default([]) @map("recommended_topics")
+  evaluatedAt       DateTime @default(now()) @map("evaluated_at")
+
+  session SpeakingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("speaking_instructor_evaluations")
+}
+
+// ============================================================================
+// INSTRUCTOR SCHEDULING & BOOKINGS
+// ============================================================================
+
+model InstructorAvailability {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instructorId String   @map("instructor_id") @db.Uuid
+  dayOfWeek    Int      @map("day_of_week")
+  startTime    String   @map("start_time")
+  endTime      String   @map("end_time")
+  timezone     String   @default("UTC")
+  isRecurring  Boolean  @default(true) @map("is_recurring")
+  specificDate DateTime? @map("specific_date") @db.Date
+  isActive     Boolean  @default(true) @map("is_active")
+
+  instructor User @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([instructorId, dayOfWeek, isActive])
+  @@index([instructorId, specificDate])
+  @@map("instructor_availability")
+}
+
+model Booking {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId       String        @map("student_id") @db.Uuid
+  instructorId    String        @map("instructor_id") @db.Uuid
+  scheduledAt     DateTime      @map("scheduled_at")
+  durationMins    Int           @default(15) @map("duration_mins")
+  status          BookingStatus @default(PENDING)
+  meetingLink     String?       @map("meeting_link")
+  meetingProvider String?       @map("meeting_provider")
+  studentNotes    String?       @map("student_notes")
+  instructorNotes String?       @map("instructor_notes")
+  reminderSentAt  DateTime?     @map("reminder_sent_at")
+  cancelledAt     DateTime?     @map("cancelled_at")
+  cancellationReason String?    @map("cancellation_reason")
+  paymentId       String?       @map("payment_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  student         User             @relation("StudentBookings", fields: [studentId], references: [id])
+  instructor      User             @relation("InstructorBookings", fields: [instructorId], references: [id])
+  payment         Payment?         @relation(fields: [paymentId], references: [id])
+  speakingSession SpeakingSession?
+
+  @@index([studentId, status])
+  @@index([instructorId, status])
+  @@index([scheduledAt])
+  @@index([status, scheduledAt])
+  @@map("bookings")
+}
+
+// ============================================================================
+// PAYMENTS & SUBSCRIPTIONS
+// ============================================================================
+
+model Plan {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  tier           SubscriptionTier
+  description    String?
+  priceMonthly   Decimal          @map("price_monthly") @db.Decimal(10, 2)
+  priceYearly    Decimal?         @map("price_yearly") @db.Decimal(10, 2)
+  currency       String           @default("USD")
+  stripePriceIdMonthly String?    @map("stripe_price_id_monthly")
+  stripePriceIdYearly  String?    @map("stripe_price_id_yearly")
+  features       Json             @default("[]")
+  mockTestsPerMonth    Int?       @map("mock_tests_per_month")
+  aiEvalsPerMonth      Int?       @map("ai_evals_per_month")
+  speakingSessionsPerMonth Int?   @map("speaking_sessions_per_month")
+  isActive       Boolean          @default(true) @map("is_active")
+  sortOrder      Int              @default(0) @map("sort_order")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String             @unique @map("user_id") @db.Uuid
+  planId           String             @map("plan_id") @db.Uuid
+  stripeCustomerId String?            @map("stripe_customer_id")
+  stripeSubId      String?            @map("stripe_sub_id")
+  status           SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime?        @map("current_period_start")
+  currentPeriodEnd DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
+  trialEndsAt      DateTime?          @map("trial_ends_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@index([stripeSubId])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("USD")
+  status           PaymentStatus @default(PENDING)
+  description      String?
+  stripePaymentId  String?       @unique @map("stripe_payment_id")
+  stripeInvoiceId  String?       @map("stripe_invoice_id")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id])
+  bookings Booking[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([stripePaymentId])
+  @@map("payments")
+}
+
+// ============================================================================
+// RAG RESOURCES & VECTOR EMBEDDINGS
+// ============================================================================
+
+model Resource {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uploadedById    String                   @map("uploaded_by_id") @db.Uuid
+  title           String
+  description     String?
+  fileUrl         String                   @map("file_url")
+  fileName        String                   @map("file_name")
+  fileSizeBytes   Int                      @map("file_size_bytes")
+  fileType        ResourceFileType         @map("file_type")
+  sourceType      ResourceSourceType       @map("source_type")
+  module          TestModule?
+  topic           String?
+  difficulty      Difficulty?
+  variant         TestVariant?
+  level           String?
+  tags            String[]                 @default([])
+  extractedText   String?                  @map("extracted_text") @db.Text
+  processingStatus ResourceProcessingStatus @default(PENDING) @map("processing_status")
+  processingError String?                  @map("processing_error")
+  totalChunks     Int                      @default(0) @map("total_chunks")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  uploadedBy  User            @relation("ResourceUploader", fields: [uploadedById], references: [id])
+  chunks      ResourceChunk[]
+  generations GenerationAudit[] @relation("SourceResources")
+
+  @@index([module, sourceType, processingStatus])
+  @@index([uploadedById])
+  @@index([processingStatus])
+  @@map("resources")
+}
+
+model ResourceChunk {
+  id          String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resourceId  String                      @map("resource_id") @db.Uuid
+  content     String                      @db.Text
+  chunkIndex  Int                         @map("chunk_index")
+  tokenCount  Int?                        @map("token_count")
+  embedding   Unsupported("vector(768)")?
+  metadata    Json?
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, chunkIndex])
+  @@map("resource_chunks")
+}
+
+// ============================================================================
+// AI GENERATION AUDIT TRAIL (hallucination protection)
+// ============================================================================
+
+model GenerationAudit {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  generationType      String           @map("generation_type")
+  status              GenerationStatus @default(PENDING)
+  inputPrompt         String           @map("input_prompt") @db.Text
+  retrievedChunkIds   String[]         @default([]) @map("retrieved_chunk_ids")
+  similarityScores    Json?            @map("similarity_scores")
+  rawAiOutput         String?          @map("raw_ai_output") @db.Text
+  parsedOutput        Json?            @map("parsed_output")
+  modelName           String?          @map("model_name")
+  modelVersion        String?          @map("model_version")
+  tokensUsed          Int?             @map("tokens_used")
+  confidenceScore     Float?           @map("confidence_score")
+  reviewedById        String?          @map("reviewed_by_id") @db.Uuid
+  reviewNotes         String?          @map("review_notes") @db.Text
+  rejectionReason     String?          @map("rejection_reason")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  publishedAt         DateTime?        @map("published_at")
+
+  sourceResources  Resource[]       @relation("SourceResources")
+  generatedTests   Test[]
+  writingPrompts   WritingPrompt[]
+  speakingCueCards SpeakingCueCard[]
+
+  @@index([generationType, status])
+  @@index([createdAt(sort: Desc)])
+  @@map("generation_audits")
+}
+
+// ============================================================================
+// PROGRESS TRACKING & ANALYTICS
+// ============================================================================
+
+model ProgressRecord {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String     @map("user_id") @db.Uuid
+  module          TestModule
+  bandScore       Float      @map("band_score")
+  rawScore        Float?     @map("raw_score")
+  totalQuestions   Int?      @map("total_questions")
+  correctAnswers   Int?     @map("correct_answers")
+  attemptType     String     @map("attempt_type")
+  attemptId       String?    @map("attempt_id") @db.Uuid
+  criteriaScores  Json?      @map("criteria_scores")
+  weakAreas       String[]   @default([]) @map("weak_areas")
+  strongAreas     String[]   @default([]) @map("strong_areas")
+  recordedAt      DateTime   @default(now()) @map("recorded_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, module, recordedAt(sort: Desc)])
+  @@index([userId, recordedAt(sort: Desc)])
+  @@map("progress_records")
+}
+
+model StudyPlan {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  weekNumber       Int      @map("week_number")
+  focusModules     TestModule[] @map("focus_modules")
+  dailyTasks       Json     @default("[]") @map("daily_tasks")
+  targetBands      Json     @default("{}") @map("target_bands")
+  isAiGenerated    Boolean  @default(true) @map("is_ai_generated")
+  completedTasks   Int      @default(0) @map("completed_tasks")
+  totalTasks       Int      @default(0) @map("total_tasks")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, weekNumber(sort: Desc)])
+  @@map("study_plans")
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ============================================================================
+// BLOG & CONTENT
+// ============================================================================
+
+model BlogPost {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorId    String   @map("author_id") @db.Uuid
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String   @db.Text
+  coverImage  String?  @map("cover_image")
+  tags        String[] @default([])
+  isPublished Boolean  @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  author User @relation("BlogAuthor", fields: [authorId], references: [id])
+
+  @@index([isPublished, publishedAt(sort: Desc)])
+  @@index([slug])
+  @@map("blog_posts")
+}
+
+model ContactMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  email     String
+  subject   String?
+  message   String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  repliedAt DateTime? @map("replied_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([isRead, createdAt(sort: Desc)])
+  @@map("contact_messages")
+}
+
+// ============================================================================
+// SYSTEM
+// ============================================================================
+
+model SystemSetting {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key   String @unique
+  value Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}

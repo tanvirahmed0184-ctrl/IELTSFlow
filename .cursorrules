@@ -1,0 +1,415 @@
+You are a senior full-stack architect and product engineer. Build a production-ready web platform for IELTS candidates to practice and take mock tests.
+
+STACK REQUIREMENT (ZERO-COST / FREE TIER OPTIMIZED)
+- Next.js 16+ with App Router
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Prisma ORM
+- Supabase (Use for PostgreSQL Database, File Storage, AND Auth to keep it in one ecosystem)
+- pgvector (Enabled inside Supabase for vector embeddings / RAG)
+- Redis + BullMQ (Use Upstash free tier for Redis)
+- Stripe (Test mode for payments)
+- Google Gemini API (Use for all AI generation, writing/speaking evaluation, and text embeddings via their free tier)
+- Voice/Audio: Use Web Speech API natively in the browser for Text-to-Speech (AI interviewer). Use browser native SpeechRecognition OR Groq Whisper API for Speech-to-Text (student answers).
+
+PROJECT NAME
+AI IELTS Mock Test Platform
+brand name: IELTS FLOW
+
+PRODUCT GOAL
+Create a complete IELTS mock test platform where candidates can:
+1. Practice Reading, Listening, Writing, and Speaking
+2. Take full-length timed mock tests
+3. Receive AI-predicted band scores for Writing and Speaking
+4. Take AI-based speaking mock interviews
+5. Book instructor-led speaking mocks through scheduled meetings
+6. Track progress, weaknesses, readiness, and improvement over time
+
+A key feature is that the admin can upload PDFs and other materials, and the AI will use those resources as the base pattern to generate new practice tests and mock tests.
+
+IMPORTANT PRODUCT RULES
+- The platform should feel close to a real IELTS exam
+- AI scores must be shown as predicted practice band scores, not official IELTS scores
+- Feedback must be rubric-based and transparent
+- All generated content should be original and inspired by uploaded materials, not copied
+- System should support both AI speaking tests and live instructor speaking tests
+
+BUILD OBJECTIVE
+Create:
+1. Scalable architecture
+2. Clean folder structure
+3. Full database schema
+4. Admin dashboard
+5. Student dashboard
+6. Instructor dashboard
+7. IELTS test engine
+8. AI evaluation pipelines
+9. Resource upload + RAG ingestion workflow
+10. Meeting scheduling workflow
+11. Subscription/payment flow
+12. Modern high-trust UI
+
+USER ROLES
+- Guest
+- Student
+- Instructor
+- Admin
+- Super Admin
+
+CORE FEATURES
+
+1. PUBLIC WEBSITE
+Use the attached image. design is given.
+Create pages for:
+- Landing page
+- Features
+- Pricing
+- About
+- Contact
+- FAQ
+- Blog
+- Free demo / sample mock
+- Testimonials / trust section
+-each page after clicking "click me, which will take according to each test whether "speaking, listening or writing or reading.
+-exam interface
+-
+Landing page should clearly explain:
+- AI band score prediction
+- AI speaking interview
+- Instructor-led speaking mock
+- Exam-like practice experience
+- Progress tracking
+- Resource-based intelligent content generation
+
+2. STUDENT DASHBOARD
+Build a dashboard with:
+- Overview cards
+- Latest predicted band
+- Target band
+- Exam readiness score
+- Upcoming speaking sessions
+- Practice history
+- Skill progress charts
+- Recommended next actions
+- Weakness analysis
+- Personalized study suggestions
+
+3. TEST MODULES
+**Question Navigation Panel**
+   - Right-hand sidebar with clickable question numbers
+   - Colors for status:
+     - Gray: Not visited
+     - Yellow: Visited, not answered
+     - Green: Answered
+     - Red: Flagged for review
+   - Clicking a number scrolls/activates that question
+-Add “Mark for Review” like the real exam.
+A. LISTENING
+- IELTS-style listening interface
+- Audio player
+- Section timing
+- Multiple question types
+- Auto-submit
+- Review answers
+- Score calculation
+- Estimated band mapping
+
+B. READING
+- Passage and questions layout
+- IELTS-style timing
+- Multiple question types
+- Highlight / note functionality
+- Review mode
+- Correct answer explanations
+- Estimated band mapping
+
+C. WRITING
+Support:
+- Task 1
+- Task 2
+
+Features:
+- Timer
+- Word count
+- Autosave
+- Submit for AI evaluation
+- Store all drafts and attempts
+
+AI writing evaluation should include:
+- Task Achievement / Task Response
+- Coherence & Cohesion
+- Lexical Resource
+- Grammatical Range & Accuracy
+- Predicted band for each criterion
+- Estimated overall band
+- Strengths
+- Weaknesses
+- Sentence-level corrections
+- Vocabulary improvement suggestions
+- Better sample rewrite
+- Examiner-style summary
+
+D. SPEAKING
+Two speaking types:
+
+TYPE 1: AI SPEAKING MOCK
+- AI interviewer simulates IELTS speaking test
+- Part 1: personal questions
+- Part 2: cue card with preparation timer
+- Part 3: follow-up discussion
+- Voice interaction
+- Audio recording
+- Speech-to-text transcription
+- Save transcript and audio
+- AI evaluation
+
+Speaking evaluation should include:
+- Fluency & Coherence
+- Lexical Resource
+- Grammatical Range & Accuracy
+- Pronunciation
+- Predicted score per criterion
+- Estimated overall band
+- Filler word analysis
+- Pause/hesitation analysis
+- Pronunciation feedback
+- Vocabulary and grammar feedback
+- Suggested better response strategy
+
+TYPE 2: INSTRUCTOR SPEAKING MOCK
+- Student can book live speaking session
+- Instructor sets availability
+- Student sees available slots
+- Session booking flow
+- Meeting link generation
+- Instructor scoring form
+- Rubric-based manual scoring
+- Written instructor comments
+- Compare instructor score vs AI score
+
+4. ADMIN RESOURCE UPLOAD + AI GENERATION
+Admin can upload:
+- PDF
+- DOCX
+- TXT
+- CSV
+- Images with OCR
+- Sample answers
+- Cue cards
+- Reading passages
+- Writing prompts
+- Lesson notes
+- Vocabulary lists
+
+System should:
+- Upload and store files
+- Extract text
+- Chunk content
+- Create embeddings
+- Store in vector database
+- Tag resources by:
+  - module
+  - topic
+  - level
+  - difficulty
+  - Academic / General
+  - source type
+- Use RAG to generate new:
+  - mock tests
+  - practice tests
+  - speaking cue cards
+  - writing questions
+  - follow-up question
+ALso, 
+hallucination protection
+--------u can use this folder architecture: 
+ai-ielts-platform/
+
+├── app/                     # Next.js App Router
+│
+│   ├── (marketing)/         # Public website
+│   │   ├── page.tsx
+│   │   ├── pricing/
+│   │   ├── features/
+│   │   ├── blog/
+│   │   ├── about/
+│   │   ├── contact/
+│   │   └── free-demo/
+│   │
+│   ├── (auth)/
+│   │   ├── login/
+│   │   ├── register/
+│   │   └── forgot-password/
+│   │
+│   ├── dashboard/
+│   │   ├── student/
+│   │   │   ├── overview/
+│   │   │   ├── practice/
+│   │   │   ├── tests/
+│   │   │   ├── speaking/
+│   │   │   ├── progress/
+│   │   │   └── settings/
+│   │   │
+│   │   ├── instructor/
+│   │   │   ├── availability/
+│   │   │   ├── sessions/
+│   │   │   ├── evaluations/
+│   │   │   └── earnings/
+│   │   │
+│   │   ├── admin/
+│   │   │   ├── resources/
+│   │   │   ├── test-generator/
+│   │   │   ├── users/
+│   │   │   ├── analytics/
+│   │   │   └── settings/
+│   │
+│   ├── test-engine/         # IELTS exam engine
+│   │   ├── listening/
+│   │   ├── reading/
+│   │   ├── writing/
+│   │   └── speaking/
+│   │
+│   ├── api/                 # Backend routes
+│   │   ├── auth/
+│   │   ├── tests/
+│   │   ├── ai/
+│   │   ├── speaking/
+│   │   ├── resources/
+│   │   ├── booking/
+│   │   ├── payments/
+│   │   └── analytics/
+│   │
+│   └── layout.tsx
+│
+│
+├── components/              # UI components
+│   ├── ui/                  # shadcn components
+│   ├── layout/
+│   ├── dashboard/
+│   ├── test-engine/
+│   │   ├── question-types/
+│   │   ├── timer/
+│   │   ├── audio-player/
+│   │   ├── answer-input/
+│   │   └── result-review/
+│   │
+│   ├── speaking/
+│   │   ├── ai-interviewer/
+│   │   ├── recorder/
+│   │   └── transcript-viewer/
+│
+│
+├── features/                # Feature modules
+│   ├── listening/
+│   ├── reading/
+│   ├── writing/
+│   ├── speaking/
+│   ├── ai-evaluation/
+│   ├── progress-tracking/
+│   ├── scheduling/
+│   └── payments/
+│
+│
+├── lib/                     # Core logic
+│   ├── prisma.ts
+│   ├── auth.ts
+│   ├── redis.ts
+│   ├── stripe.ts
+│   ├── vector-db.ts
+│   ├── embeddings.ts
+│   ├── rag.ts
+│   ├── scoring/
+│   │   ├── band-mapping.ts
+│   │   ├── writing-score.ts
+│   │   └── speaking-score.ts
+│
+│
+├── ai/                      # AI pipelines
+│   ├── writing-evaluator/
+│   │   ├── prompt.ts
+│   │   ├── evaluator.ts
+│   │   └── parser.ts
+│   │
+│   ├── speaking-evaluator/
+│   │   ├── transcription.ts
+│   │   ├── fluency-analysis.ts
+│   │   ├── pronunciation-analysis.ts
+│   │   └── scoring.ts
+│   │
+│   ├── test-generator/
+│   │   ├── prompt-builder.ts
+│   │   ├── rag-query.ts
+│   │   └── generator.ts
+│
+│
+├── ingestion/               # RAG resource pipeline
+│   ├── pdf-parser.ts
+│   ├── docx-parser.ts
+│   ├── ocr.ts
+│   ├── chunker.ts
+│   ├── embedding.ts
+│   └── vector-store.ts
+│
+│
+├── workers/                 # Background jobs
+│   ├── queues/
+│   │   ├── ai-evaluation.queue.ts
+│   │   ├── transcription.queue.ts
+│   │   ├── embeddings.queue.ts
+│   │
+│   ├── processors/
+│   │   ├── evaluate-writing.ts
+│   │   ├── evaluate-speaking.ts
+│   │   └── generate-tests.ts
+│
+│
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
+│
+│
+├── storage/
+│   ├── s3.ts
+│   └── uploads/
+│
+│
+├── hooks/
+│   ├── useTestTimer.ts
+│   ├── useAudioPlayer.ts
+│   ├── useSpeechRecorder.ts
+│   └── useBandScore.ts
+│
+│
+├── utils/
+│   ├── format.ts
+│   ├── validators.ts
+│   └── constants.ts
+│
+│
+├── styles/
+│   └── globals.css
+│
+│
+├── scripts/
+│   ├── seed-db.ts
+│   ├── generate-tests.ts
+│   └── import-resources.ts
+│
+│
+├── tests/                   # automated testing
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+│
+│
+├── docker/
+│   ├── Dockerfile
+│   └── docker-compose.yml
+│
+│
+├── .env
+├── next.config.js
+├── tailwind.config.ts
+├── tsconfig.json
+└── package.json

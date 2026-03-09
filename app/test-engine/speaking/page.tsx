@@ -1,14 +1,11 @@
 import { Metadata } from "next";
+import { SpeakingTestEngine } from "@/components/test-engine/speaking-test-engine";
 
 export const metadata: Metadata = {
   title: "Speaking Test - IELTS Flow",
+  description: "Take an AI-powered IELTS Speaking mock test with real-time voice interaction.",
 };
 
 export default function SpeakingTestPage() {
-  return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold">IELTS Speaking Test</h1>
-      <p className="mt-2 text-muted-foreground">Complete the speaking test with AI interviewer.</p>
-    </div>
-  );
+  return <SpeakingTestEngine />;
 }

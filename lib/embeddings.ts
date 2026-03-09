@@ -1,12 +1,19 @@
-// Google Gemini text embeddings
-// TODO: Configure Gemini API for embedding generation
+import { getGeminiClient, GEMINI_EMBEDDING_MODEL } from "./gemini";
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // TODO: Call Gemini API to generate text embedding
-  return [];
+  const client = getGeminiClient();
+  const result = await client.models.embedContent({
+    model: GEMINI_EMBEDDING_MODEL,
+    contents: text,
+  });
+  return result.embeddings?.[0]?.values ?? [];
 }
 
 export async function generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
-  // TODO: Batch embedding generation
-  return texts.map(() => []);
+  const results: number[][] = [];
+  // Gemini embedding API processes one at a time; batch sequentially
+  for (const text of texts) {
+    results.push(await generateEmbedding(text));
+  }
+  return results;
 }

@@ -1,6 +1,5 @@
 // Prisma client singleton for Next.js
-// NOTE: Prisma v7 requires a driver adapter at runtime.
-// For scaffolding, we use a lazy initialization pattern.
+// Uses lazy initialization so the build doesn't fail without a DB.
 // Actual adapter setup will be configured when Supabase is connected.
 
 import { PrismaClient } from "@/lib/generated/prisma/client";
@@ -8,7 +7,7 @@ import { PrismaClient } from "@/lib/generated/prisma/client";
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClientInstance | undefined;
+  _prisma: PrismaClientInstance | undefined;
 };
 
 function createPrismaClient(): PrismaClientInstance {
@@ -16,8 +15,23 @@ function createPrismaClient(): PrismaClientInstance {
   return new PrismaClient({ adapter: null });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+export function getPrisma(): PrismaClientInstance {
+  if (globalForPrisma._prisma) return globalForPrisma._prisma;
+  const client = createPrismaClient();
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma._prisma = client;
+  }
+  return client;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+/**
+ * Lazy proxy that defers PrismaClient creation until first property access.
+ * This prevents build-time errors when no database adapter is configured.
+ */
+export const prisma = new Proxy({} as PrismaClientInstance, {
+  get(_target, prop) {
+    return (getPrisma() as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 export default prisma;

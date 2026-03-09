@@ -20,8 +20,30 @@ import {
   AlertTriangle,
   CheckCircle2,
   X,
+  Loader2,
+  BookOpen,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+
+// ─── Evaluation result type from API ────────────────────────
+interface EvaluationCriteria {
+  taskAchievement: number;
+  coherenceCohesion: number;
+  lexicalResource: number;
+  grammaticalRange: number;
+}
+
+interface WritingEvalResult {
+  criteria: EvaluationCriteria;
+  overallBand: number;
+  strengths: string[];
+  weaknesses: string[];
+  corrections: { original: string; corrected: string; explanation: string }[];
+  vocabularySuggestions: { original: string; suggested: string; context: string }[];
+  sampleRewrite: string;
+  examinerSummary: string;
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 interface WritingTask {
@@ -81,6 +103,9 @@ export function WritingTestEngine({
   });
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, { savedAt: Date; wordCount: number }[]>>({});
+  const [evaluations, setEvaluations] = useState<Record<string, WritingEvalResult>>({});
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalError, setEvalError] = useState<string | null>(null);
 
   const activeTask = tasks[activeTaskIndex];
   const activeResponse = responses[activeTask.id] ?? "";
@@ -151,15 +176,46 @@ export function WritingTestEngine({
     [autosave]
   );
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     autosave.saveNow();
     timer.pause();
     setPhase("submitted");
     setShowSubmitConfirm(false);
+    setIsEvaluating(true);
+    setEvalError(null);
 
-    // TODO: POST to /api/tests/writing/submit
-    // Triggers AI evaluation via BullMQ queue
-  }, [autosave, timer]);
+    // Evaluate each task via the AI API
+    const results: Record<string, WritingEvalResult> = {};
+    try {
+      for (const task of tasks) {
+        const text = responses[task.id] ?? "";
+        if (!text.trim()) continue;
+
+        const res = await fetch("/api/ai/writing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            taskType: task.taskType,
+            promptText: task.promptText,
+            response: text,
+            wordCount: text.trim().split(/\s+/).length,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.evaluation) {
+            results[task.id] = data.evaluation;
+          }
+        }
+      }
+      setEvaluations(results);
+    } catch (err) {
+      setEvalError(err instanceof Error ? err.message : "Evaluation failed");
+    } finally {
+      setIsEvaluating(false);
+    }
+  }, [autosave, timer, tasks, responses]);
 
   // ─── Word counts ────────────────────────────────────────────
   const wordCounts = useMemo(() => {
@@ -234,51 +290,173 @@ export function WritingTestEngine({
     );
   }
 
-  // ─── Submitted screen ──────────────────────────────────────
+  // ─── Submitted / Results screen ─────────────────────────────
   if (phase === "submitted") {
+    const hasResults = Object.keys(evaluations).length > 0;
     return (
       <div className="min-h-screen bg-muted/30">
-        <div className="mx-auto max-w-2xl px-4 py-16 sm:py-24">
-          <div className="rounded-2xl border bg-card p-8 shadow-lg sm:p-12 text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-green-100">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold sm:text-3xl">Test Submitted!</h1>
-            <p className="mt-3 text-muted-foreground">
-              Your writing responses have been submitted for AI evaluation.
-            </p>
+        <div className="mx-auto max-w-4xl px-4 py-10 sm:py-16">
+          {/* Header */}
+          <div className="rounded-2xl border bg-card p-8 shadow-lg text-center mb-8">
+            {isEvaluating ? (
+              <>
+                <Loader2 className="mx-auto h-12 w-12 text-brand-purple animate-spin mb-4" />
+                <h1 className="text-2xl font-bold">Evaluating Your Writing...</h1>
+                <p className="mt-2 text-muted-foreground">Our AI examiner is analyzing your responses. This takes 30-60 seconds.</p>
+              </>
+            ) : evalError ? (
+              <>
+                <AlertTriangle className="mx-auto h-12 w-12 text-amber-500 mb-4" />
+                <h1 className="text-2xl font-bold">Evaluation Issue</h1>
+                <p className="mt-2 text-muted-foreground">
+                  {evalError.includes("GEMINI_API_KEY")
+                    ? "The AI service is not configured yet. Your responses have been saved."
+                    : `Something went wrong: ${evalError}`}
+                </p>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="mx-auto h-12 w-12 text-green-500 mb-4" />
+                <h1 className="text-2xl font-bold">Evaluation Complete!</h1>
+                <p className="mt-2 text-muted-foreground">Here are your predicted practice band scores.</p>
+              </>
+            )}
+          </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              {tasks.map((task) => (
-                <div key={task.id} className="rounded-lg border bg-muted/40 p-4 text-left">
-                  <div className="text-xs font-medium text-muted-foreground">Task {task.taskNumber}</div>
-                  <div className="mt-1 text-lg font-bold">{wordCounts[task.id]} words</div>
-                  <div className={`text-xs ${wordCounts[task.id] >= task.minWords ? "text-green-600" : "text-amber-600"}`}>
-                    {wordCounts[task.id] >= task.minWords ? "Minimum met" : `Below ${task.minWords} minimum`}
+          {/* Per-task results */}
+          {hasResults && tasks.map((task) => {
+            const ev = evaluations[task.id];
+            if (!ev) return null;
+            const criteriaList = [
+              { label: task.taskType === "TASK_2" ? "Task Response" : "Task Achievement", score: ev.criteria.taskAchievement },
+              { label: "Coherence & Cohesion", score: ev.criteria.coherenceCohesion },
+              { label: "Lexical Resource", score: ev.criteria.lexicalResource },
+              { label: "Grammatical Range", score: ev.criteria.grammaticalRange },
+            ];
+            return (
+              <div key={task.id} className="mb-8 rounded-2xl border bg-card shadow-lg overflow-hidden">
+                {/* Task header with overall band */}
+                <div className="flex items-center justify-between border-b bg-muted/40 px-6 py-4">
+                  <div>
+                    <h2 className="text-lg font-bold">Writing Task {task.taskNumber}</h2>
+                    <p className="text-xs text-muted-foreground">{wordCounts[task.id]} words</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-extrabold text-brand-purple">{ev.overallBand}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Predicted Band</div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-6 rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-              Your responses are being evaluated by our AI. This typically takes 30-60 seconds.
-              You&apos;ll receive detailed feedback including predicted band scores for each criterion.
-            </div>
+                <div className="p-6 space-y-6">
+                  {/* Criteria scores */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {criteriaList.map((c) => (
+                      <div key={c.label} className="rounded-lg border p-3 text-center">
+                        <div className="text-2xl font-bold text-brand-purple">{c.score}</div>
+                        <div className="mt-1 text-[11px] text-muted-foreground leading-tight">{c.label}</div>
+                      </div>
+                    ))}
+                  </div>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link
-                href="/dashboard/student/tests"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-purple-dark"
-              >
-                View My Results
-              </Link>
-              <Link
-                href="/dashboard/student/practice"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors hover:bg-muted"
-              >
-                Back to Practice
-              </Link>
-            </div>
+                  {/* Examiner summary */}
+                  {ev.examinerSummary && (
+                    <div className="rounded-lg bg-brand-purple/5 border border-brand-purple/15 p-4">
+                      <h4 className="text-sm font-semibold text-brand-purple mb-1">Examiner Summary</h4>
+                      <p className="text-sm text-foreground leading-relaxed">{ev.examinerSummary}</p>
+                    </div>
+                  )}
+
+                  {/* Strengths & Weaknesses */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border p-4">
+                      <h4 className="text-sm font-semibold text-green-700 mb-2">Strengths</h4>
+                      <ul className="space-y-1.5">
+                        {ev.strengths.map((s, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />{s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <h4 className="text-sm font-semibold text-red-700 mb-2">Areas to Improve</h4>
+                      <ul className="space-y-1.5">
+                        {ev.weaknesses.map((w, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />{w}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Corrections */}
+                  {ev.corrections.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-3">Sentence-Level Corrections</h4>
+                      <div className="space-y-2">
+                        {ev.corrections.map((c, i) => (
+                          <div key={i} className="rounded-lg border p-3 text-sm">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                              <span className="line-through text-red-600">{c.original}</span>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                              <span className="text-green-700 font-medium">{c.corrected}</span>
+                            </div>
+                            <p className="mt-1.5 text-xs text-muted-foreground">{c.explanation}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vocabulary suggestions */}
+                  {ev.vocabularySuggestions.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-3">Vocabulary Improvements</h4>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {ev.vocabularySuggestions.map((v, i) => (
+                          <div key={i} className="rounded-lg border p-3 text-sm">
+                            <span className="text-muted-foreground">{v.original}</span>
+                            <span className="mx-2 text-muted-foreground">→</span>
+                            <span className="font-medium text-brand-purple">{v.suggested}</span>
+                            {v.context && <p className="mt-1 text-xs text-muted-foreground">{v.context}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sample rewrite */}
+                  {ev.sampleRewrite && (
+                    <details className="rounded-lg border">
+                      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-muted/50">
+                        <BookOpen className="h-4 w-4 text-brand-purple" />
+                        View Band 8+ Sample Rewrite
+                      </summary>
+                      <div className="border-t px-4 py-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                        {ev.sampleRewrite}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Navigation */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/dashboard/student/tests"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-purple-dark"
+            >
+              View All Results
+            </Link>
+            <Link
+              href="/test-engine/writing"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors hover:bg-muted"
+            >
+              Practice Again
+            </Link>
           </div>
         </div>
       </div>

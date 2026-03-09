@@ -6,13 +6,12 @@
 
 generator client {
   provider        = "prisma-client"
-  output          = "../lib/generated/prisma"
-  previewFeatures = ["postgresqlExtensions"]
+  output          = "../app/generated/prisma"
 }
 
+
 datasource db {
-  provider   = "postgresql"
-  extensions = [vector, uuid_ossp(map: "uuid-ossp")]
+  provider = "postgresql"
 }
 
 // ============================================================================

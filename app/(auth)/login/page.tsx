@@ -14,8 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { GraduationCap, User, Shield, BookOpen } from "lucide-react";
+import { GraduationCap, User, Shield, BookOpen, Loader2 } from "lucide-react";
 import type { UserRole } from "@/app/generated/prisma/enums";
+
+const MAX_PROFILE_RETRIES = 12;
+const PROFILE_RETRY_INTERVAL_MS = 500;
 
 type LoginRole = "STUDENT" | "INSTRUCTOR" | "ADMIN";
 
@@ -32,6 +35,7 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<LoginRole>("STUDENT");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,15 +65,34 @@ export default function LoginPage() {
       const meData = await meRes.json();
 
       if (meData.needsSync) {
-        await fetch("/api/auth/sync", {
+        setSettingUp(true);
+        const syncRes = await fetch("/api/auth/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: selectedRole }),
         });
+        if (!syncRes.ok) {
+          const syncErr = await syncRes.json();
+          setError(syncErr?.error ?? "Failed to set up account. Please try again.");
+          setSettingUp(false);
+          setLoading(false);
+          return;
+        }
       }
 
-      const retryMe = await fetch("/api/auth/me");
-      const { user } = await retryMe.json();
+      let user = (await (await fetch("/api/auth/me")).json()).user;
+      let retries = 0;
+
+      while (!user && retries < MAX_PROFILE_RETRIES) {
+        setSettingUp(true);
+        await new Promise((r) => setTimeout(r, PROFILE_RETRY_INTERVAL_MS));
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        user = data.user;
+        retries++;
+      }
+
+      setSettingUp(false);
 
       if (!user) {
         setError("Your account is being set up. Please try again in a moment.");
@@ -174,7 +197,7 @@ export default function LoginPage() {
               className="h-10"
             />
           </div>
-          {error && (
+          {(error && !settingUp) && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </p>
@@ -182,7 +205,19 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
-            {loading ? "Signing in…" : "Sign In"}
+            {settingUp ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Setting up your workspace…
+              </>
+            ) : loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              "Sign In"
+            )}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}

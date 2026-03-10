@@ -250,11 +250,12 @@ function MockTestSection() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-14 grid grid-rows-3 gap-6">
           {tests.map((test) => (
             <div
               key={test.title}
               className="group rounded-xl bg-white/10 p-6 backdrop-blur border border-white/15 transition-all hover:bg-white/20 hover:-translate-y-1"
+              style={{ width: 638 }}
             >
               <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
                 <GraduationCap className="h-6 w-6 text-white" />

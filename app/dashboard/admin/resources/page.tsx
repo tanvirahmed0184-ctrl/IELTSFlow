@@ -106,7 +106,14 @@ export default function AdminResourcesPage() {
 
     try {
       const res = await fetch("/api/resources/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { success?: boolean; error?: string } & UploadResult;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        updateFile(uf.id, { status: "error", error: res.ok ? "Invalid response" : `Server error (${res.status})` });
+        return;
+      }
       if (res.ok && data.success) {
         updateFile(uf.id, { status: "done", result: data });
       } else {

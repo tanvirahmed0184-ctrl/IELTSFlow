@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parsePDF } from "@/ingestion/pdf-parser";
 import { chunkText } from "@/ingestion/chunker";
 import { generateEmbedding } from "@/lib/embeddings";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
+
+async function parsePDFBuffer(buffer: Buffer): Promise<{ text: string; pages: number }> {
+  const pdfParseModule = await import("pdf-parse");
+  const parse =
+    typeof pdfParseModule === "function"
+      ? (pdfParseModule as (buf: Buffer) => Promise<{ text: string; numpages: number }>)
+      : (pdfParseModule as unknown as { default: (buf: Buffer) => Promise<{ text: string; numpages: number }> }).default;
+  const data = await parse(buffer);
+  return { text: data.text, pages: data.numpages };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,24 +25,24 @@ export async function POST(request: NextRequest) {
     const variant = formData.get("variant") as string | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = file.name;
     const fileType = fileName.endsWith(".pdf") ? "PDF" : fileName.endsWith(".txt") ? "TXT" : "PDF";
 
-    // 1. Extract text
+    // 1. Extract text (dynamic import so pdf-parse load errors are caught)
     let extractedText = "";
     if (fileType === "PDF") {
-      const parsed = await parsePDF(buffer);
+      const parsed = await parsePDFBuffer(buffer);
       extractedText = parsed.text;
     } else {
       extractedText = buffer.toString("utf-8");
     }
 
     if (!extractedText.trim()) {
-      return NextResponse.json({ error: "No text could be extracted from the file" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "No text could be extracted from the file" }, { status: 400 });
     }
 
     // 2. Chunk text
@@ -54,6 +63,7 @@ export async function POST(request: NextRequest) {
     // 4. Try to save to database
     let resourceId: string | null = null;
     try {
+      const prisma = getPrisma();
       const resource = await prisma.resource.create({
         data: {
           uploadedById: "00000000-0000-0000-0000-000000000000", // placeholder until auth
@@ -103,6 +113,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Resource upload error:", error);
     const message = error instanceof Error ? error.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

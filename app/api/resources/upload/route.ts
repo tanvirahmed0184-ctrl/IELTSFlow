@@ -4,13 +4,10 @@ import { generateEmbedding } from "@/lib/embeddings";
 import { getPrisma } from "@/lib/prisma";
 
 async function parsePDFBuffer(buffer: Buffer): Promise<{ text: string; pages: number }> {
-  const pdfParseModule = await import("pdf-parse");
-  const parse =
-    typeof pdfParseModule === "function"
-      ? (pdfParseModule as (buf: Buffer) => Promise<{ text: string; numpages: number }>)
-      : (pdfParseModule as unknown as { default: (buf: Buffer) => Promise<{ text: string; numpages: number }> }).default;
-  const data = await parse(buffer);
-  return { text: data.text, pages: data.numpages };
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  return { text, pages: totalPages };
 }
 
 export async function POST(request: NextRequest) {

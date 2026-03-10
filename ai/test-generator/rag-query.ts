@@ -1,5 +1,5 @@
 // RAG query for test generation context
-import type { TestModule, Difficulty, TestVariant } from "@/lib/generated/prisma/client";
+import type { TestModule, Difficulty, TestVariant } from "@/app/generated/prisma/client";
 import { queryRAG } from "@/lib/rag";
 
 export async function getTestGenerationContext(options: {

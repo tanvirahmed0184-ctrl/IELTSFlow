@@ -1,5 +1,5 @@
 // Speaking score calculation using Gemini AI
-import type { SpeakingPartType } from "@/lib/generated/prisma/client";
+import type { SpeakingPartType } from "@/app/generated/prisma/client";
 import type { SpeakingEvaluationResult } from "@/lib/scoring/speaking-score";
 
 export async function evaluateSpeaking(

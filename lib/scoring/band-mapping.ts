@@ -1,7 +1,7 @@
 // IELTS band score mapping utilities
 // Based on publicly available IELTS band score conversion tables
 
-import type { TestVariant } from "@/lib/generated/prisma/client";
+import type { TestVariant } from "@/app/generated/prisma/client";
 
 export const BAND_SCORES = [0, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9] as const;
 

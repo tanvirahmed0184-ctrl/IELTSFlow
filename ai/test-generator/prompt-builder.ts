@@ -1,5 +1,5 @@
 // Build prompts for AI test generation
-import type { TestModule, TestVariant, Difficulty } from "@/lib/generated/prisma/client";
+import type { TestModule, TestVariant, Difficulty } from "@/app/generated/prisma/client";
 
 export function buildTestGenerationPrompt(options: {
   module: TestModule;

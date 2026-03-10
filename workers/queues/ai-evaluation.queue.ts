@@ -1,7 +1,7 @@
 // BullMQ queue for AI evaluation jobs
 // TODO: Configure with Upstash Redis
 
-import type { WritingTaskType, SpeakingPartType } from "@/lib/generated/prisma/client";
+import type { WritingTaskType, SpeakingPartType } from "@/app/generated/prisma/client";
 
 export const AI_EVALUATION_QUEUE = "ai-evaluation";
 

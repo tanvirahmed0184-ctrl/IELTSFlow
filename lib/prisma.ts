@@ -2,7 +2,7 @@
 // Uses lazy initialization so the build doesn't fail without a DB.
 // Actual adapter setup will be configured when Supabase is connected.
 
-import { PrismaClient } from "@/lib/generated/prisma/client";
+import { PrismaClient } from "@/app/generated/prisma/client";
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 

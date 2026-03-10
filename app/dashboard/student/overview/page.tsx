@@ -70,10 +70,10 @@ const WEAKNESSES = [
 ];
 
 const RECOMMENDED_ACTIONS = [
-  { label: "Take a Writing Task 2 practice", href: "/test-engine/writing", icon: PenLine, priority: "high" },
-  { label: "Practice Speaking Part 2 with AI", href: "/test-engine/speaking", icon: Mic, priority: "high" },
-  { label: "Complete a Listening full test", href: "/test-engine/listening", icon: Headphones, priority: "medium" },
-  { label: "Review Reading passage strategies", href: "/test-engine/reading", icon: BookOpen, priority: "low" },
+  { label: "Take a Writing Task 2 practice", href: "/exam-library/writing", icon: PenLine, priority: "high" },
+  { label: "Practice Speaking Part 2 with AI", href: "/dashboard/student/speaking", icon: Mic, priority: "high" },
+  { label: "Complete a Listening full test", href: "/exam-library/listening", icon: Headphones, priority: "medium" },
+  { label: "Review Reading passage strategies", href: "/exam-library/reading", icon: BookOpen, priority: "low" },
 ];
 
 const moduleIcons: Record<string, React.ElementType> = {

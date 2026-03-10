@@ -6,6 +6,7 @@ import {
   Mic,
   GraduationCap,
   Clock,
+  Calendar,
   BarChart3,
   Brain,
   CheckCircle2,
@@ -125,7 +126,7 @@ function PracticeSkillsSection() {
       iconBg: "bg-blue-100",
       description:
         "Practice with real IELTS-style audio sections. Auto-scored with band mapping.",
-      href: "/test-engine/listening",
+      href: "/exam-library/listening",
       features: ["4 sections, 40 questions", "Audio playback controls", "Auto band calculation"],
     },
     {
@@ -135,7 +136,7 @@ function PracticeSkillsSection() {
       iconBg: "bg-emerald-100",
       description:
         "Academic & General passages with all official question types. Timed and scored.",
-      href: "/test-engine/reading",
+      href: "/exam-library/reading",
       features: ["3 passages, 40 questions", "Highlight & note tools", "Answer explanations"],
     },
     {
@@ -145,7 +146,7 @@ function PracticeSkillsSection() {
       iconBg: "bg-amber-100",
       description:
         "Task 1 & Task 2 with AI evaluation on all 4 IELTS criteria. Get detailed feedback.",
-      href: "/test-engine/writing",
+      href: "/exam-library/writing",
       features: ["Task 1 & Task 2", "AI band prediction", "Sentence-level corrections"],
     },
     {
@@ -155,7 +156,7 @@ function PracticeSkillsSection() {
       iconBg: "bg-rose-100",
       description:
         "AI interviewer simulates all 3 parts. Voice recording with pronunciation feedback.",
-      href: "/test-engine/speaking",
+      href: "/dashboard/student/speaking",
       features: ["Parts 1, 2 & 3", "AI or live instructor", "Filler word analysis"],
     },
   ];
@@ -285,6 +286,24 @@ function MockTestSection() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* BC Exam Dates - outbound link */}
+      <div className="mt-12 rounded-xl border border-white/15 bg-white/5 p-6 text-center">
+        <Calendar className="mx-auto h-10 w-10 text-white/80" />
+        <h3 className="mt-3 text-lg font-semibold text-white">Official IELTS Exam Dates</h3>
+        <p className="mt-2 text-sm text-white/70">
+          Book your official IELTS test at an authorized center.
+        </p>
+        <a
+          href="https://www.britishcouncil.org/exam/ielts/dates-fees-locations"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex items-center gap-2 text-brand-teal-light font-semibold hover:underline"
+        >
+          View British Council Exam Dates &amp; Locations
+          <ArrowRight className="h-4 w-4" />
+        </a>
       </div>
     </section>
   );

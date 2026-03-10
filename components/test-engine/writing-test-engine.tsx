@@ -446,13 +446,20 @@ export function WritingTestEngine({
           {/* Navigation */}
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
+              href="/dashboard/student/progress"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-teal px-6 py-4 text-base font-semibold text-white shadow-lg transition-colors hover:bg-brand-teal-dark"
+            >
+              SEE WHAT NEEDS TO IMPROVE
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+            <Link
               href="/dashboard/student/tests"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-purple-dark"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors hover:bg-muted"
             >
               View All Results
             </Link>
             <Link
-              href="/test-engine/writing"
+              href="/exam-library/writing"
               className="inline-flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors hover:bg-muted"
             >
               Practice Again

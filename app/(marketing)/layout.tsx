@@ -5,7 +5,6 @@ import {
   Headphones,
   Mic,
   PenLine,
-  Menu,
   Facebook,
   Twitter,
   Instagram,
@@ -14,6 +13,7 @@ import {
   Phone,
   MapPin,
 } from "lucide-react";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 export default function MarketingLayout({
   children,
@@ -81,13 +81,11 @@ export default function MarketingLayout({
             </Link>
             <Link
               href="/register"
-              className="inline-flex rounded-md bg-brand-teal px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-brand-teal-dark"
+              className="hidden sm:inline-flex rounded-md bg-brand-teal px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-brand-teal-dark"
             >
               Get Started Free
             </Link>
-            <button className="lg:hidden text-white p-1" aria-label="Menu">
-              <Menu className="h-6 w-6" />
-            </button>
+            <MobileNav />
           </div>
         </div>
       </header>

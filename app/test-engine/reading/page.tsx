@@ -1,14 +1,15 @@
-import { Metadata } from "next";
+import { Suspense } from "react";
+import { ReadingTestEngine } from "@/components/test-engine/reading-test-engine";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Reading Test - IELTS Flow",
+  description: "IELTS Reading practice with split-pane passage and questions",
 };
 
 export default function ReadingTestPage() {
   return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold">IELTS Reading Test</h1>
-      <p className="mt-2 text-muted-foreground">Read the passages and answer the questions.</p>
-    </div>
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center">Loading...</div>}>
+      <ReadingTestEngine />
+    </Suspense>
   );
 }

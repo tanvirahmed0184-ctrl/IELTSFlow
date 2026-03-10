@@ -16,8 +16,8 @@ import {
   Activity,
   Bell,
   LogOut,
-  Menu,
 } from "lucide-react";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 const studentNav = [
   { href: "/dashboard/student/overview", label: "Overview", icon: LayoutDashboard },
@@ -102,12 +102,12 @@ export default function DashboardLayout({
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-6 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 sm:px-6 backdrop-blur">
           <div className="flex items-center gap-3">
-            <button className="lg:hidden text-muted-foreground hover:text-foreground" aria-label="Menu">
-              <Menu className="h-5 w-5" />
-            </button>
-            <h2 className="text-sm font-medium text-muted-foreground">Dashboard</h2>
+            <MobileNav />
+            <h2 className="text-sm font-medium text-muted-foreground hidden sm:inline">
+              Dashboard
+            </h2>
           </div>
           <div className="flex items-center gap-3">
             <button className="relative flex h-9 w-9 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">

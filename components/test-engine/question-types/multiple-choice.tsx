@@ -4,10 +4,11 @@ interface MultipleChoiceProps {
   questionId: string;
   question: string;
   options: string[];
+  value?: string;
   onAnswer: (questionId: string, answer: string) => void;
 }
 
-export function MultipleChoice({ questionId, question, options, onAnswer }: MultipleChoiceProps) {
+export function MultipleChoice({ questionId, question, options, value, onAnswer }: MultipleChoiceProps) {
   return (
     <div className="space-y-4">
       <p className="font-medium">{question}</p>
@@ -18,6 +19,7 @@ export function MultipleChoice({ questionId, question, options, onAnswer }: Mult
               type="radio"
               name={questionId}
               value={option}
+              checked={value === option}
               onChange={() => onAnswer(questionId, option)}
               className="h-4 w-4"
             />

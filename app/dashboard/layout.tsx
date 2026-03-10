@@ -8,6 +8,7 @@ import {
   BarChart3,
   Settings,
   Calendar,
+  Video,
   Users,
   Clock,
   DollarSign,
@@ -24,6 +25,8 @@ const studentNav = [
   { href: "/dashboard/student/practice", label: "Practice", icon: BookOpen },
   { href: "/dashboard/student/tests", label: "My Tests", icon: FileText },
   { href: "/dashboard/student/speaking", label: "Speaking", icon: Mic },
+  { href: "/dashboard/student/book", label: "Book Instructor", icon: Calendar },
+  { href: "/dashboard/student/bookings", label: "My Bookings", icon: Video },
   { href: "/dashboard/student/progress", label: "Progress", icon: BarChart3 },
   { href: "/dashboard/student/settings", label: "Settings", icon: Settings },
 ];

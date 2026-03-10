@@ -1,74 +1,78 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, Clock, User, Video, CheckCircle2, XCircle, MessageSquare, Star, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar, Clock, Video, CheckCircle2, MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
+import { formatDateLocal, formatTimeLocal } from "@/lib/datetime";
 
-type TabType = "upcoming" | "past";
+const tz = "UTC";
 
-const UPCOMING_SESSIONS = [
-  { id: "1", studentName: "Ahmed Rahman", date: "Mar 10, 2026", time: "10:00 AM", duration: 15, topic: "Speaking Part 2 - Describe a place", status: "confirmed" as const, meetingLink: "https://meet.google.com/abc" },
-  { id: "2", studentName: "Maria Santos", date: "Mar 10, 2026", time: "2:00 PM", duration: 15, topic: "Speaking Full Mock", status: "confirmed" as const, meetingLink: "https://meet.google.com/def" },
-  { id: "3", studentName: "Wei Chen", date: "Mar 11, 2026", time: "11:00 AM", duration: 15, topic: "Speaking Part 1 & 3", status: "pending" as const, meetingLink: null },
-  { id: "4", studentName: "Priya Patel", date: "Mar 12, 2026", time: "3:00 PM", duration: 15, topic: "Speaking Full Mock", status: "confirmed" as const, meetingLink: "https://meet.google.com/ghi" },
-];
+interface Booking {
+  id: string;
+  scheduledAt: string;
+  durationMins: number;
+  status: string;
+  meetingLink: string | null;
+  studentNotes: string | null;
+  student: { id: string; name: string | null; email: string };
+}
 
-const PAST_SESSIONS = [
-  { id: "p1", studentName: "John Davis", date: "Mar 7, 2026", time: "9:00 AM", duration: 15, bandGiven: 6.5, hasEvaluation: true, status: "completed" as const },
-  { id: "p2", studentName: "Sarah Kim", date: "Mar 6, 2026", time: "11:00 AM", duration: 15, bandGiven: 7.0, hasEvaluation: true, status: "completed" as const },
-  { id: "p3", studentName: "Omar Hassan", date: "Mar 5, 2026", time: "2:00 PM", duration: 15, bandGiven: null, hasEvaluation: false, status: "completed" as const },
-  { id: "p4", studentName: "Lisa Wang", date: "Mar 4, 2026", time: "10:00 AM", duration: 15, bandGiven: null, hasEvaluation: false, status: "no_show" as const },
-];
-
-const statusColors = {
-  confirmed: "bg-green-100 text-green-700",
-  pending: "bg-amber-100 text-amber-700",
-  completed: "bg-blue-100 text-blue-700",
-  no_show: "bg-red-100 text-red-700",
-};
-
-const statusLabels = {
-  confirmed: "Confirmed",
-  pending: "Pending",
-  completed: "Completed",
-  no_show: "No Show",
+const statusColors: Record<string, string> = {
+  CONFIRMED: "bg-green-100 text-green-700",
+  PENDING: "bg-amber-100 text-amber-700",
+  COMPLETED: "bg-blue-100 text-blue-700",
+  NO_SHOW: "bg-red-100 text-red-700",
+  CANCELLED_BY_STUDENT: "bg-gray-100 text-gray-600",
+  CANCELLED_BY_INSTRUCTOR: "bg-gray-100 text-gray-600",
 };
 
 export default function InstructorSessionsPage() {
-  const [activeTab, setActiveTab] = useState<TabType>("upcoming");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+
+  useEffect(() => {
+    fetch("/api/booking?as=instructor")
+      .then((r) => r.json())
+      .then((data) => setBookings(Array.isArray(data) ? data : []))
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const now = new Date();
+  const upcoming = bookings.filter(
+    (b) => new Date(b.scheduledAt) >= now && !["CANCELLED_BY_STUDENT", "CANCELLED_BY_INSTRUCTOR"].includes(b.status)
+  );
+  const past = bookings.filter((b) => new Date(b.scheduledAt) < now || ["CANCELLED_BY_STUDENT", "CANCELLED_BY_INSTRUCTOR"].includes(b.status));
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Sessions</h1>
-        <p className="text-muted-foreground mt-1">Manage your upcoming and past speaking sessions.</p>
+        <p className="mt-1 text-muted-foreground">Manage your upcoming and past speaking sessions.</p>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">This Week</div>
-          <div className="mt-1 text-2xl font-extrabold">6</div>
+          <div className="mt-1 text-2xl font-extrabold">{upcoming.filter((b) => {
+            const d = new Date(b.scheduledAt);
+            const weekEnd = new Date(now);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+            return d < weekEnd;
+          }).length}</div>
           <p className="text-xs text-muted-foreground">sessions booked</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending Review</div>
-          <div className="mt-1 text-2xl font-extrabold text-amber-600">2</div>
-          <p className="text-xs text-muted-foreground">need evaluation</p>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upcoming</div>
+          <div className="mt-1 text-2xl font-extrabold">{upcoming.length}</div>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Rating</div>
-          <div className="mt-1 text-2xl font-extrabold flex items-center gap-1">4.9 <Star className="h-4 w-4 fill-amber-400 text-amber-400" /></div>
-          <p className="text-xs text-muted-foreground">from 120 reviews</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Sessions</div>
-          <div className="mt-1 text-2xl font-extrabold">248</div>
-          <p className="text-xs text-muted-foreground">all time</p>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</div>
+          <div className="mt-1 text-2xl font-extrabold">{bookings.length}</div>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex border-b">
           {(["upcoming", "past"] as const).map((tab) => (
@@ -81,85 +85,97 @@ export default function InstructorSessionsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {tab === "upcoming" ? `Upcoming (${UPCOMING_SESSIONS.length})` : `Past (${PAST_SESSIONS.length})`}
+              {tab === "upcoming" ? `Upcoming (${upcoming.length})` : `Past (${past.length})`}
             </button>
           ))}
         </div>
 
-        {/* Upcoming sessions */}
-        {activeTab === "upcoming" && (
+        {loading ? (
+          <div className="px-5 py-8 text-center text-muted-foreground">Loading...</div>
+        ) : activeTab === "upcoming" ? (
           <div className="divide-y">
-            {UPCOMING_SESSIONS.map((session) => (
-              <div key={session.id} className="flex items-center gap-4 px-5 py-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-purple text-xs font-bold text-white">
-                  {session.studentName.split(" ").map((n) => n[0]).join("")}
-                </div>
-                <div className="flex-1 min-w-0">
+            {upcoming.length === 0 ? (
+              <div className="px-5 py-8 text-center text-muted-foreground">No upcoming sessions.</div>
+            ) : (
+              upcoming.map((b) => (
+                <div key={b.id} className="flex items-center gap-4 px-5 py-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-purple text-xs font-bold text-white">
+                    {(b.student.name ?? b.student.email).split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{b.student.name ?? b.student.email}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[b.status] ?? "bg-gray-100 text-gray-700"}`}>
+                        {b.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDateLocal(new Date(b.scheduledAt), tz)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatTimeLocal(new Date(b.scheduledAt), tz)} ({b.durationMins}min)
+                      </span>
+                    </div>
+                    {b.studentNotes && (
+                      <div className="text-xs text-muted-foreground mt-0.5">{b.studentNotes}</div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{session.studentName}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[session.status]}`}>
-                      {statusLabels[session.status]}
-                    </span>
+                    {b.meetingLink && (
+                      <a
+                        href={b.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-brand-teal px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-teal-dark"
+                      >
+                        <Video className="h-3.5 w-3.5" /> Join
+                      </a>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{session.date}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{session.time} ({session.duration}min)</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{session.topic}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {session.meetingLink && (
-                    <a href={session.meetingLink} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg bg-brand-teal px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-teal-dark">
-                      <Video className="h-3.5 w-3.5" /> Join
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-        )}
-
-        {/* Past sessions */}
-        {activeTab === "past" && (
+        ) : (
           <div className="divide-y">
-            {PAST_SESSIONS.map((session) => (
-              <div key={session.id} className="flex items-center gap-4 px-5 py-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                  {session.studentName.split(" ").map((n) => n[0]).join("")}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{session.studentName}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[session.status]}`}>
-                      {statusLabels[session.status]}
-                    </span>
+            {past.length === 0 ? (
+              <div className="px-5 py-8 text-center text-muted-foreground">No past sessions.</div>
+            ) : (
+              past.map((b) => (
+                <div key={b.id} className="flex items-center gap-4 px-5 py-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                    {(b.student.name ?? b.student.email).split(" ").map((n) => n[0]).join("").slice(0, 2)}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{session.date}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{session.time}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{b.student.name ?? b.student.email}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[b.status] ?? "bg-gray-100"}`}>
+                        {b.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDateLocal(new Date(b.scheduledAt), tz)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatTimeLocal(new Date(b.scheduledAt), tz)}
+                      </span>
+                    </div>
                   </div>
+                  <Link
+                    href="/dashboard/instructor/evaluations"
+                    className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" /> Evaluate
+                  </Link>
                 </div>
-                <div className="flex items-center gap-2">
-                  {session.bandGiven != null && (
-                    <span className="rounded-lg bg-brand-purple/10 px-3 py-1.5 text-xs font-bold text-brand-purple">
-                      Band {session.bandGiven}
-                    </span>
-                  )}
-                  {session.status === "completed" && !session.hasEvaluation && (
-                    <Link href={`/dashboard/instructor/evaluations`}
-                      className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-200">
-                      <MessageSquare className="h-3.5 w-3.5" /> Evaluate
-                    </Link>
-                  )}
-                  {session.hasEvaluation && (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Evaluated
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>

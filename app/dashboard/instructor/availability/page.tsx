@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Clock, Plus, Trash2, Save, CheckCircle2, Calendar, Globe } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -29,6 +29,27 @@ const INITIAL_SLOTS: Slot[] = [
 
 export default function InstructorAvailabilityPage() {
   const [slots, setSlots] = useState<Slot[]>(INITIAL_SLOTS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/booking/availability")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setSlots(
+            data.map((s: { id: string; dayOfWeek: number; startTime: string; endTime: string }) => ({
+              id: s.id,
+              day: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              isRecurring: true,
+            }))
+          );
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
   const [timezone, setTimezone] = useState("Asia/Dhaka");
   const [isSaved, setIsSaved] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
@@ -53,11 +74,27 @@ export default function InstructorAvailabilityPage() {
     setIsSaved(false);
   }, []);
 
-  const handleSave = useCallback(() => {
-    // TODO: POST to /api/booking/availability
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
-  }, []);
+  const handleSave = useCallback(async () => {
+    try {
+      const res = await fetch("/api/booking/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timezone,
+          slots: slots.map((s) => ({
+            dayOfWeek: s.day,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch {
+      setIsSaved(false);
+    }
+  }, [timezone, slots]);
 
   const totalHours = slots.reduce((sum, s) => {
     const [sh, sm] = s.startTime.split(":").map(Number);

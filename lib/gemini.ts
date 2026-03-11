@@ -15,4 +15,4 @@ export function getGeminiClient(): GoogleGenAI {
 }
 
 export const GEMINI_TEXT_MODEL = "gemini-2.0-flash";
-export const GEMINI_EMBEDDING_MODEL = "text-embedding-004";
+export const GEMINI_EMBEDDING_MODEL = "text-embedding-005";

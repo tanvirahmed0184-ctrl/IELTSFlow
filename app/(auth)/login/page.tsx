@@ -17,9 +17,6 @@ import {
 import { GraduationCap, User, Shield, BookOpen, Loader2 } from "lucide-react";
 import type { UserRole } from "@/app/generated/prisma/enums";
 
-const MAX_PROFILE_RETRIES = 12;
-const PROFILE_RETRY_INTERVAL_MS = 500;
-
 type LoginRole = "STUDENT" | "INSTRUCTOR" | "ADMIN";
 
 const ROLE_OPTIONS: { value: LoginRole; label: string; icon: typeof User }[] = [
@@ -61,47 +58,28 @@ export default function LoginPage() {
         return;
       }
 
-      const meRes = await fetch("/api/auth/me");
-      const meData = await meRes.json();
+      setSettingUp(true);
+      const ensureRes = await fetch("/api/auth/ensure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: selectedRole }),
+      });
 
-      if (meData.needsSync) {
-        setSettingUp(true);
-        const syncRes = await fetch("/api/auth/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: selectedRole }),
-        });
-        if (!syncRes.ok) {
-          const syncErr = await syncRes.json();
-          setError(syncErr?.error ?? "Failed to set up account. Please try again.");
-          setSettingUp(false);
-          setLoading(false);
-          return;
-        }
-      }
-
-      let user = (await (await fetch("/api/auth/me")).json()).user;
-      let retries = 0;
-
-      while (!user && retries < MAX_PROFILE_RETRIES) {
-        setSettingUp(true);
-        await new Promise((r) => setTimeout(r, PROFILE_RETRY_INTERVAL_MS));
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        user = data.user;
-        retries++;
-      }
+      // If our app DB is temporarily unavailable, don't block an otherwise-correct login.
+      // We can still route based on the selected role and let pages re-check.
+      const ensureJson = await ensureRes.json().catch(() => null);
+      const user = ensureRes.ok ? ensureJson?.user : null;
 
       setSettingUp(false);
 
       if (!user) {
-        setError("Your account is being set up. Please try again in a moment.");
-        setLoading(false);
+        if (selectedRole === "ADMIN") router.push("/dashboard/admin/analytics");
+        else if (selectedRole === "INSTRUCTOR") router.push("/dashboard/instructor/availability");
+        else router.push("/dashboard/student/overview");
         return;
       }
 
       const dbRole = user.role as UserRole;
-      const allowedRoles: UserRole[] = ["STUDENT", "INSTRUCTOR", "ADMIN", "SUPER_ADMIN"];
 
       if (selectedRole === "ADMIN" && dbRole !== "ADMIN" && dbRole !== "SUPER_ADMIN") {
         setError("You don't have admin access. Sign in as Student or Instructor.");

@@ -11,8 +11,8 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClientInstance {
-  // @ts-expect-error -- adapter will be provided when database is configured
-  return new PrismaClient({ adapter: null });
+  // Standard Prisma Client for PostgreSQL (DATABASE_URL via prisma.config.ts / env)
+  return new PrismaClient();
 }
 
 export function getPrisma(): PrismaClientInstance {

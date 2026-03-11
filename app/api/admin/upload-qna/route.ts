@@ -29,6 +29,7 @@ Document content:
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("[admin/upload-qna] request received");
     const supabase = await createSupabaseServerClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) {
@@ -39,12 +40,15 @@ export async function POST(request: NextRequest) {
     const dbUser = await prisma.user.findUnique({
       where: { supabaseId: authUser.id },
     });
+    console.log("[admin/upload-qna] db user", { id: dbUser?.id, role: dbUser?.role });
     if (!dbUser || (dbUser.role !== "ADMIN" && dbUser.role !== "SUPER_ADMIN")) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
+    console.log("[admin/upload-qna] reading formData");
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    console.log("[admin/upload-qna] file field", { hasFile: Boolean(file) });
     const text = formData.get("text") as string | null;
     const module = formData.get("module") as string | null;
     const variantParam = formData.get("variant") as string | null;
@@ -55,6 +59,7 @@ export async function POST(request: NextRequest) {
       const buffer = await file.arrayBuffer();
       content = Buffer.from(buffer).toString("utf-8");
     }
+    console.log("[admin/upload-qna] content prepared", { length: content.length });
 
     if (!content || content.length < 20) {
       return NextResponse.json(
@@ -63,6 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("[admin/upload-qna] calling Gemini parser");
     const client = getGeminiClient();
     const response = await client.models.generateContent({
       model: "gemini-2.0-flash",
@@ -70,12 +76,14 @@ export async function POST(request: NextRequest) {
       config: { temperature: 0.2, maxOutputTokens: 8192 },
     });
 
+    console.log("[admin/upload-qna] Gemini response received");
     const rawText = response.text ?? "[]";
     const cleaned = rawText
       .replace(/```json\n?|\n?```/g, "")
       .trim();
     let parsed: unknown[];
     try {
+      console.log("[admin/upload-qna] parsing Gemini JSON");
       parsed = JSON.parse(cleaned) as unknown[];
     } catch (e) {
       return NextResponse.json(
@@ -83,6 +91,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    console.log("[admin/upload-qna] Gemini JSON parsed");
 
     const questions: Array<{
       questionText: string;
@@ -134,8 +144,7 @@ export async function POST(request: NextRequest) {
 
     // Persist questions into Test / Question tables for LISTENING / READING modules
     let createdTestId: string | null = null;
-    try {
-      const moduleRaw = (module ?? "READING").toUpperCase();
+    const moduleRaw = (module ?? "READING").toUpperCase();
       const testModule: TestModule =
         moduleRaw === "LISTENING"
           ? "LISTENING"
@@ -148,6 +157,13 @@ export async function POST(request: NextRequest) {
         variantRaw === "GENERAL" ? "GENERAL" : "ACADEMIC";
 
       const difficulty: Difficulty = "MEDIUM";
+
+      console.log("[admin/upload-qna] persisting to DB", {
+        testModule,
+        variant,
+        difficulty,
+        questions: questions.length,
+      });
 
       if (
         questions.length > 0 &&
@@ -203,10 +219,8 @@ export async function POST(request: NextRequest) {
         );
 
         createdTestId = test.id;
+        console.log("[admin/upload-qna] DB save complete", { testId: createdTestId });
       }
-    } catch (dbError) {
-      console.error("[admin/upload-qna] failed to persist Test/Questions", dbError);
-    }
 
     return NextResponse.json({
       parsed: {
@@ -218,9 +232,10 @@ export async function POST(request: NextRequest) {
       testId: createdTestId,
     });
   } catch (e) {
-    console.error("[admin/upload-qna]", e);
+    console.error("[admin/upload-qna] error", e);
+    const message = e instanceof Error ? e.message : "Upload/parse failed";
     return NextResponse.json(
-      { error: "Upload/parse failed" },
+      { error: message },
       { status: 500 }
     );
   }

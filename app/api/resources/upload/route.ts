@@ -12,7 +12,10 @@ async function parsePDFBuffer(buffer: Buffer): Promise<{ text: string; pages: nu
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("[resources/upload] request received");
     const formData = await request.formData();
+    console.log("[resources/upload] formData parsed");
+
     const file = formData.get("file") as File | null;
     const title = (formData.get("title") as string) ?? "Untitled";
     const moduleValue = formData.get("module") as string | null;
@@ -22,12 +25,18 @@ export async function POST(request: NextRequest) {
     const variant = formData.get("variant") as string | null;
 
     if (!file) {
+      console.warn("[resources/upload] no file provided");
       return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 });
     }
 
+    console.log("[resources/upload] file received", { fileName: file.name, size: file.size });
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = file.name;
-    const fileType = fileName.endsWith(".pdf") ? "PDF" : fileName.endsWith(".txt") ? "TXT" : "PDF";
+    const fileType = fileName.endsWith(".pdf")
+      ? "PDF"
+      : fileName.endsWith(".txt")
+        ? "TXT"
+        : "PDF";
 
     // 1. Extract text (dynamic import so pdf-parse load errors are caught)
     let extractedText = "";
@@ -37,66 +46,82 @@ export async function POST(request: NextRequest) {
     } else {
       extractedText = buffer.toString("utf-8");
     }
+    console.log("[resources/upload] text extracted", { length: extractedText.length });
 
     if (!extractedText.trim()) {
-      return NextResponse.json({ success: false, error: "No text could be extracted from the file" }, { status: 400 });
+      console.warn("[resources/upload] empty extracted text");
+      return NextResponse.json(
+        { success: false, error: "No text could be extracted from the file" },
+        { status: 400 }
+      );
     }
 
     // 2. Chunk text
     const chunks = chunkText(extractedText, { chunkSize: 800, overlap: 150 });
+    console.log("[resources/upload] text chunked", { chunks: chunks.length });
 
     // 3. Generate embeddings for each chunk
     const embeddedChunks: { content: string; embedding: number[]; index: number }[] = [];
+    console.log("[resources/upload] generating embeddings", { chunks: chunks.length });
     for (let i = 0; i < chunks.length; i++) {
       try {
         const embedding = await generateEmbedding(chunks[i].content);
         embeddedChunks.push({ content: chunks[i].content, embedding, index: i });
-      } catch {
+      } catch (e) {
+        console.warn("[resources/upload] embedding failed for chunk", {
+          index: i,
+          error: e instanceof Error ? e.message : String(e),
+        });
         // If embedding fails (no API key), store chunk without embedding
         embeddedChunks.push({ content: chunks[i].content, embedding: [], index: i });
       }
     }
+    console.log("[resources/upload] embeddings generated", {
+      chunks: embeddedChunks.length,
+      withEmbedding: embeddedChunks.filter((c) => c.embedding.length > 0).length,
+    });
 
-    // 4. Try to save to database
-    let resourceId: string | null = null;
-    try {
-      const prisma = getPrisma();
-      const resource = await prisma.resource.create({
+    // 4. Save to database
+    const prisma = getPrisma();
+    console.log("[resources/upload] saving Resource to DB");
+    const resource = await prisma.resource.create({
+      data: {
+        uploadedById: "00000000-0000-0000-0000-000000000000", // placeholder until auth
+        title,
+        description: `Uploaded file: ${fileName}`,
+        fileUrl: `/uploads/${fileName}`,
+        fileName,
+        fileSizeBytes: buffer.length,
+        fileType: fileType as "PDF" | "TXT",
+        sourceType: sourceType as
+          | "READING_PASSAGE"
+          | "WRITING_PROMPT"
+          | "GENERAL_MATERIAL",
+        module: moduleValue as "LISTENING" | "READING" | "WRITING" | "SPEAKING" | null,
+        topic,
+        difficulty: difficulty as "EASY" | "MEDIUM" | "HARD" | null,
+        variant: variant as "ACADEMIC" | "GENERAL" | null,
+        extractedText: extractedText.slice(0, 50000),
+        processingStatus: "COMPLETED",
+        totalChunks: embeddedChunks.length,
+      },
+    });
+    const resourceId = resource.id;
+    console.log("[resources/upload] Resource saved", { resourceId });
+
+    console.log("[resources/upload] saving chunks", { count: embeddedChunks.length });
+    for (const chunk of embeddedChunks) {
+      await prisma.resourceChunk.create({
         data: {
-          uploadedById: "00000000-0000-0000-0000-000000000000", // placeholder until auth
-          title,
-          description: `Uploaded file: ${fileName}`,
-          fileUrl: `/uploads/${fileName}`,
-          fileName,
-          fileSizeBytes: buffer.length,
-          fileType: fileType as "PDF" | "TXT",
-          sourceType: sourceType as "READING_PASSAGE" | "WRITING_PROMPT" | "GENERAL_MATERIAL",
-          module: moduleValue as "LISTENING" | "READING" | "WRITING" | "SPEAKING" | null,
-          topic,
-          difficulty: difficulty as "EASY" | "MEDIUM" | "HARD" | null,
-          variant: variant as "ACADEMIC" | "GENERAL" | null,
-          extractedText: extractedText.slice(0, 50000),
-          processingStatus: "COMPLETED",
-          totalChunks: embeddedChunks.length,
+          resourceId: resource.id,
+          content: chunk.content,
+          chunkIndex: chunk.index,
+          tokenCount: chunk.content.split(/\s+/).length,
+          metadata: { embeddingDimensions: chunk.embedding.length },
         },
       });
-      resourceId = resource.id;
-
-      // Store chunks (without vector — raw SQL needed for pgvector insert)
-      for (const chunk of embeddedChunks) {
-        await prisma.resourceChunk.create({
-          data: {
-            resourceId: resource.id,
-            content: chunk.content,
-            chunkIndex: chunk.index,
-            tokenCount: chunk.content.split(/\s+/).length,
-            metadata: { embeddingDimensions: chunk.embedding.length },
-          },
-        });
-      }
-    } catch {
-      console.warn("DB not connected — returning extraction results without persisting");
     }
+    console.log("[resources/upload] chunks saved", { count: embeddedChunks.length });
 
     return NextResponse.json({
       success: true,
@@ -108,7 +133,7 @@ export async function POST(request: NextRequest) {
       preview: extractedText.slice(0, 500),
     });
   } catch (error) {
-    console.error("Resource upload error:", error);
+    console.error("[resources/upload] error", error);
     const message = error instanceof Error ? error.message : "Upload failed";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

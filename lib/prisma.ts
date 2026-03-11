@@ -3,6 +3,7 @@
 // Actual adapter setup will be configured when Supabase is connected.
 
 import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
@@ -11,8 +12,14 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClientInstance {
-  // Standard Prisma Client for PostgreSQL (DATABASE_URL via prisma.config.ts / env)
-  return new PrismaClient();
+  const connectionString =
+    process.env.DATABASE_URL ??
+    process.env.DIRECT_URL ??
+    "postgresql://localhost:5432/postgres";
+
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
+  });
 }
 
 export function getPrisma(): PrismaClientInstance {

@@ -152,7 +152,14 @@ export default function ExamLibrarySkillPage() {
       const body =
         selectedItem.type === "writing"
           ? { promptId: selectedItem.id, mode }
-          : { testId: selectedItem.id, mode };
+          : {
+              testId: selectedItem.id,
+              mode,
+              module:
+                skillId === "listening"
+                  ? "LISTENING"
+                  : "READING",
+            };
 
       const res = await fetch(url, {
         method: "POST",
@@ -228,14 +235,49 @@ export default function ExamLibrarySkillPage() {
             <p className="text-muted-foreground">Loading tests...</p>
           </div>
         ) : sortedItems.length === 0 ? (
-          <div className="rounded-xl border bg-card p-12 text-center">
-            <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 font-semibold">No tests found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {search
-                ? "Try a different search term."
-                : "Tests will appear here once they are added."}
-            </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {["Mock Test 1", "Mock Test 2", "Mock Test 3"].map((label, idx) => {
+              const mockItem = {
+                id: `mock-${skillId}-${idx + 1}`,
+                title: `${activeSkill.label} ${label}`,
+                type: "test" as const,
+                variant: "ACADEMIC",
+                difficulty: "MEDIUM",
+                attemptCount: 0,
+                isFree: true,
+                durationMins: activeSkill.module === "LISTENING" ? 30 : 60,
+                totalQuestions: activeSkill.module === "LISTENING" ? 40 : 40,
+              };
+              return (
+                <div
+                  key={mockItem.id}
+                  className="group rounded-xl border bg-card p-5 shadow-sm transition-all hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold leading-tight">{mockItem.title}</h3>
+                    <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                      Practice
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {`${mockItem.durationMins} min`}
+                    </span>
+                    <span>{mockItem.variant}</span>
+                    <span className="capitalize">{mockItem.difficulty.toLowerCase()}</span>
+                    <span>{mockItem.attemptCount} attempts</span>
+                  </div>
+                  <Button
+                    className="mt-4 w-full"
+                    size="sm"
+                    onClick={() => openModal(mockItem)}
+                  >
+                    Start Test
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -285,6 +327,7 @@ export default function ExamLibrarySkillPage() {
         onSelect={handleModeSelect}
         skill={skillId === "speaking" ? "listening" : skillId}
         title={selectedItem?.title ?? ""}
+        hasStaticExams={sortedItems.length > 0}
       />
     </div>
   );

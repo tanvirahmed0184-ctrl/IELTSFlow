@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPrisma } from "@/lib/prisma";
 import { getGeminiClient } from "@/lib/gemini";
-import type { QuestionType } from "@/app/generated/prisma/enums";
+import type {
+  QuestionType,
+  TestModule,
+  TestVariant,
+  Difficulty,
+} from "@/app/generated/prisma/enums";
 
 /**
  * Admin upload Q&A - uses Gemini to parse document and extract questions.
@@ -30,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const prisma = getPrisma();
+  const prisma = getPrisma();
     const dbUser = await prisma.user.findUnique({
       where: { supabaseId: authUser.id },
     });
@@ -42,6 +47,8 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     const text = formData.get("text") as string | null;
     const module = formData.get("module") as string | null;
+    const variantParam = formData.get("variant") as string | null;
+    const titleParam = formData.get("title") as string | null;
 
     let content = text?.trim() ?? "";
     if (file && file.size > 0) {
@@ -85,6 +92,26 @@ export async function POST(request: NextRequest) {
     }> = [];
     const prompts: Array<{ promptText: string; taskType?: string; topic?: string }> = [];
 
+    const validQuestionTypes: QuestionType[] = [
+      "MULTIPLE_CHOICE",
+      "MULTIPLE_SELECT",
+      "FILL_IN_BLANK",
+      "TRUE_FALSE_NOT_GIVEN",
+      "YES_NO_NOT_GIVEN",
+      "MATCHING_HEADINGS",
+      "MATCHING_INFORMATION",
+      "MATCHING_FEATURES",
+      "SENTENCE_COMPLETION",
+      "SUMMARY_COMPLETION",
+      "SHORT_ANSWER",
+    ];
+
+    const toQuestionType = (t: string): QuestionType => {
+      const upper = t.toUpperCase();
+      return (validQuestionTypes.find((q) => q === upper) ??
+        "MULTIPLE_CHOICE") as QuestionType;
+    };
+
     for (const item of parsed as Record<string, unknown>[]) {
       const t = String(item.type ?? "").toUpperCase();
       if (t === "WRITING_PROMPT" || t === "CUE_CARD") {
@@ -105,6 +132,82 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Persist questions into Test / Question tables for LISTENING / READING modules
+    let createdTestId: string | null = null;
+    try {
+      const moduleRaw = (module ?? "READING").toUpperCase();
+      const testModule: TestModule =
+        moduleRaw === "LISTENING"
+          ? "LISTENING"
+          : moduleRaw === "WRITING"
+            ? "WRITING"
+            : "READING";
+
+      const variantRaw = (variantParam ?? "ACADEMIC").toUpperCase();
+      const variant: TestVariant =
+        variantRaw === "GENERAL" ? "GENERAL" : "ACADEMIC";
+
+      const difficulty: Difficulty = "MEDIUM";
+
+      if (
+        questions.length > 0 &&
+        (testModule === "LISTENING" || testModule === "READING")
+      ) {
+        const title =
+          titleParam?.trim() ||
+          `${testModule === "LISTENING" ? "Listening" : "Reading"} Set • ${
+            new Date().toISOString().split("T")[0]
+          }`;
+
+        const test = await prisma.test.create({
+          data: {
+            title,
+            description: content.slice(0, 200),
+            module: testModule,
+            variant,
+            difficulty,
+            durationMins: testModule === "LISTENING" ? 30 : 60,
+            totalQuestions: questions.length,
+            isPractice: true,
+            isActive: true,
+            isGenerated: false,
+          },
+        });
+
+        const section = await prisma.testSection.create({
+          data: {
+            testId: test.id,
+            title:
+              testModule === "LISTENING"
+                ? "Listening Section"
+                : "Reading Passage",
+            order: 1,
+          },
+        });
+
+        await prisma.$transaction(
+          questions.map((q, index) =>
+            prisma.question.create({
+              data: {
+                sectionId: section.id,
+                type: toQuestionType(q.type),
+                questionText: q.questionText,
+                questionContext: null,
+                options: q.options ?? undefined,
+                correctAnswer: q.correctAnswer as unknown as object,
+                points: 1,
+                order: index + 1,
+              },
+            })
+          )
+        );
+
+        createdTestId = test.id;
+      }
+    } catch (dbError) {
+      console.error("[admin/upload-qna] failed to persist Test/Questions", dbError);
+    }
+
     return NextResponse.json({
       parsed: {
         questions: questions.length,
@@ -112,6 +215,7 @@ export async function POST(request: NextRequest) {
       },
       questions,
       prompts,
+      testId: createdTestId,
     });
   } catch (e) {
     console.error("[admin/upload-qna]", e);

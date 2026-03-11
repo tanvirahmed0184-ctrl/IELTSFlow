@@ -14,12 +14,19 @@ import {
   MapPin,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function MarketingLayout({
+export default async function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  const isLoggedIn = Boolean(authUser);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Top bar */}
@@ -73,18 +80,29 @@ export default function MarketingLayout({
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden sm:inline-flex rounded-md px-4 py-2 text-sm font-medium text-white border border-white/30 transition-colors hover:bg-white/15"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="hidden sm:inline-flex rounded-md bg-brand-teal px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-brand-teal-dark"
-            >
-              Get Started Free
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard/student/overview"
+                className="hidden sm:inline-flex rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-white/20"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex rounded-md px-4 py-2 text-sm font-medium text-white border border-white/30 transition-colors hover:bg-white/15"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="hidden sm:inline-flex rounded-md bg-brand-teal px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-brand-teal-dark"
+                >
+                  Get Started Free
+                </Link>
+              </>
+            )}
             <MobileNav />
           </div>
         </div>

@@ -15,6 +15,7 @@ interface ModeSelectionModalProps {
   ) => void;
   skill: SkillId;
   title: string;
+  hasStaticExams?: boolean;
 }
 
 const LISTENING_PARTS = [
@@ -43,6 +44,7 @@ export function ModeSelectionModal({
   onSelect,
   skill,
   title,
+  hasStaticExams = true,
 }: ModeSelectionModalProps) {
   const [practiceParts, setPracticeParts] = useState<string[]>([]);
   const [timeLimitMins, setTimeLimitMins] = useState(30);
@@ -147,10 +149,11 @@ export function ModeSelectionModal({
               Full standard exam — timed like the real IELTS test.
             </p>
             <Button
-              className="mt-4 w-full bg-brand-purple hover:bg-brand-purple-dark"
+              className="mt-4 w-full bg-brand-purple hover:bg-brand-purple-dark disabled:opacity-60"
               onClick={() => onSelect("simulation")}
+              disabled={!hasStaticExams}
             >
-              Start Full Simulation
+              {hasStaticExams ? "Start Full Simulation" : "Upload exams in Admin to enable"}
             </Button>
           </div>
         </div>

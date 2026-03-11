@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { chunkText } from "@/ingestion/chunker";
 import { generateEmbedding } from "@/lib/embeddings";
 import { getPrisma } from "@/lib/prisma";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 async function parsePDFBuffer(buffer: Buffer): Promise<{ text: string; pages: number }> {
   const { extractText, getDocumentProxy } = await import("unpdf");
@@ -13,6 +14,30 @@ async function parsePDFBuffer(buffer: Buffer): Promise<{ text: string; pages: nu
 export async function POST(request: NextRequest) {
   try {
     console.log("[resources/upload] request received");
+
+    const supabase = await createSupabaseServerClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      console.warn("[resources/upload] no authenticated user");
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const prisma = getPrisma();
+    const dbUser = await prisma.user.findUnique({
+      where: { supabaseId: authUser.id },
+    });
+    if (!dbUser) {
+      console.warn("[resources/upload] no matching db user", { supabaseId: authUser.id });
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    if (dbUser.role !== "ADMIN" && dbUser.role !== "SUPER_ADMIN") {
+      console.warn("[resources/upload] insufficient role", { role: dbUser.role });
+      return NextResponse.json(
+        { success: false, error: "Admin access required" },
+        { status: 403 }
+      );
+    }
+
     const formData = await request.formData();
     console.log("[resources/upload] formData parsed");
 
@@ -82,11 +107,10 @@ export async function POST(request: NextRequest) {
     });
 
     // 4. Save to database
-    const prisma = getPrisma();
     console.log("[resources/upload] saving Resource to DB");
     const resource = await prisma.resource.create({
       data: {
-        uploadedById: "00000000-0000-0000-0000-000000000000", // placeholder until auth
+        uploadedById: dbUser.id,
         title,
         description: `Uploaded file: ${fileName}`,
         fileUrl: `/uploads/${fileName}`,

@@ -79,10 +79,12 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 border-r bg-card lg:flex lg:flex-col">
         <div className="flex h-16 items-center gap-2 border-b px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-purple">
-            <GraduationCap className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-bold">IELTS Flow</span>
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-purple">
+              <GraduationCap className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-lg font-bold">IELTS Flow</span>
+          </Link>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">

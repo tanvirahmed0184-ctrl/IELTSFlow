@@ -75,7 +75,13 @@ export default function RegisterPage() {
       });
 
       if (!syncRes.ok) {
-        setError("Account created but setup failed. Please try signing in.");
+        try {
+          const errBody = await syncRes.json();
+          console.error("[register] sync failed", errBody);
+          setError(errBody?.error ?? "Account created but setup failed. Please try signing in.");
+        } catch {
+          setError("Account created but setup failed. Please try signing in.");
+        }
         setLoading(false);
         return;
       }
@@ -99,6 +105,7 @@ export default function RegisterPage() {
         router.push("/dashboard/student/overview");
       }
     } catch (err) {
+      console.error("[register] unexpected error", err);
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }

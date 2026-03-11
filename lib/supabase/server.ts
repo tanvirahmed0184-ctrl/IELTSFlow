@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function createSupabaseServerClient() {
@@ -9,16 +9,17 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
+        // For RSC / route handlers we work with the full cookie list
         getAll() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options as CookieOptions)
             );
           } catch {
-            // Called from a Server Component — ignored
+            // Called from a Server Component where cookies are read-only.
           }
         },
       },

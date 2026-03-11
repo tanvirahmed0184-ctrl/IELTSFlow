@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPrisma } from "@/lib/prisma";
 import type { UserRole as PrismaUserRole } from "@/app/generated/prisma/enums";
+import { Prisma } from "@/app/generated/prisma/client";
 
 const ROLE_MAP: Record<string, PrismaUserRole> = {
   STUDENT: "STUDENT",
@@ -61,9 +62,28 @@ export async function POST(request: Request) {
       isNew: true,
     });
   } catch (e) {
-    console.error("[auth/sync]", e);
+    const unknownError = e as unknown;
+    let message = "Unknown database error";
+    let code: string | undefined;
+
+    if (unknownError instanceof Prisma.PrismaClientKnownRequestError) {
+      message = unknownError.message;
+      code = unknownError.code;
+    } else if (unknownError instanceof Error) {
+      message = unknownError.message;
+    }
+
+    console.error("[auth/sync] Database error saving new user", {
+      message,
+      code,
+      original: unknownError,
+    });
+
     return NextResponse.json(
-      { error: "Failed to sync user" },
+      {
+        error: "Database error saving new user",
+        details: { message, code },
+      },
       { status: 500 }
     );
   }
